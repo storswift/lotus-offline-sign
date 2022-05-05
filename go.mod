@@ -53,7 +53,7 @@ require (
 	github.com/filecoin-project/specs-actors/v5 v5.0.4
 	github.com/filecoin-project/specs-actors/v6 v6.0.1
 	github.com/filecoin-project/specs-actors/v7 v7.0.0
-	github.com/filecoin-project/specs-actors/v8 v8.0.0-20220422153930-0afe155bfffa
+	github.com/filecoin-project/specs-actors/v8 v8.0.0-20220505175658-9fc35d9a8df0
 	github.com/filecoin-project/specs-storage v0.2.2
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
