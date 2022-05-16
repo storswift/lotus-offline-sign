@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ipfs/go-cid"
+
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
@@ -42,6 +44,7 @@ var minerCmd = &cli.Command{
 		minerCreateCmd,
 		minerFaultsCmd,
 		sendInvalidWindowPoStCmd,
+		generateAndSendConsensusFaultCmd,
 	},
 }
 
@@ -382,8 +385,7 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Bool("really-do-it") {
-			fmt.Println("Pass --really-do-it to actually execute this action")
-			return nil
+			return xerrors.Errorf("Pass --really-do-it to actually execute this action")
 		}
 
 		api, acloser, err := lcli.GetFullNodeAPI(cctx)
@@ -457,6 +459,102 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 			From:   minfo.Worker,
 			To:     maddr,
 			Method: miner.Methods.SubmitWindowedPoSt,
+			Value:  big.Zero(),
+			Params: sp,
+		}, nil)
+		if err != nil {
+			return xerrors.Errorf("mpool push: %w", err)
+		}
+
+		fmt.Println("Message CID:", smsg.Cid())
+
+		return nil
+	},
+}
+
+var generateAndSendConsensusFaultCmd = &cli.Command{
+	Name:        "generate-and-send-consensus-fault",
+	Usage:       "Provided a block CID mined by the miner, will create another block at the same height, and send both block headers to generate a consensus fault.",
+	Description: `Note: This is meant for testing purposes and should NOT be used on mainnet or you will be slashed`,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "Actually send transaction performing the action",
+			Value: false,
+		},
+		&cli.StringFlag{
+			Name:     "blockCid",
+			Usage:    "did of the block you mined and want to create another block at the same height",
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:  "actor",
+			Usage: "TODO",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Bool("really-do-it") {
+			return xerrors.Errorf("Pass --really-do-it to actually execute this action")
+		}
+
+		api, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		maddr, err := address.NewFromString(cctx.String("actor"))
+		if err != nil {
+			return xerrors.Errorf("getting actor address: %w", err)
+		}
+
+		minfo, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return xerrors.Errorf("getting miner info: %w", err)
+		}
+
+		blockCid, err := cid.Parse(cctx.String("blockCid"))
+		if err != nil {
+			return xerrors.Errorf("parsing block cid: %w", err)
+		}
+
+		blockHeader, err := api.ChainGetBlock(ctx, blockCid)
+
+		blockHeaderCopy := blockHeader
+		blockHeaderCopy.ForkSignaling = blockHeader.ForkSignaling + 1
+
+		signingBytes, err := blockHeader.SigningBytes()
+		if err != nil {
+			return xerrors.Errorf("getting bytes to sign second block: %w", err)
+		}
+
+		sig, err := api.WalletSign(ctx, minfo.Worker, signingBytes)
+		if err != nil {
+			return xerrors.Errorf("signing second block: %w", err)
+		}
+		blockHeader.BlockSig = sig
+
+		buf1 := new(bytes.Buffer)
+		err = blockHeader.MarshalCBOR(buf1)
+		buf2 := new(bytes.Buffer)
+		err = blockHeaderCopy.MarshalCBOR(buf2)
+
+		params := miner2.ReportConsensusFaultParams{
+			BlockHeader1: buf1.Bytes(),
+			BlockHeader2: buf2.Bytes(),
+		}
+
+		sp, err := actors.SerializeParams(&params)
+		if err != nil {
+			return xerrors.Errorf("serializing params: %w", err)
+		}
+
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+			From:   minfo.Worker,
+			To:     maddr,
+			Method: miner.Methods.ReportConsensusFault,
 			Value:  big.Zero(),
 			Params: sp,
 		}, nil)
