@@ -258,19 +258,15 @@ type FVM struct {
 
 func NewFVM(ctx context.Context, opts *VMOpts) (*FVM, error) {
 	log.Info("using the FVM, this is experimental!")
-	circToReport := opts.FilVested
-	// For v14 (and earlier), we perform the FilVested portion of the calculation, and let the FVM dynamically do the rest
-	// v15 and after, the circ supply is always constant per epoch, so we calculate the base and report it at creation
-	if opts.NetworkVersion >= network.Version15 {
-		state, err := state.LoadStateTree(cbor.NewCborStore(opts.Bstore), opts.StateBase)
-		if err != nil {
-			return nil, err
-		}
 
-		circToReport, err = opts.CircSupplyCalc(ctx, opts.Epoch, state)
-		if err != nil {
-			return nil, err
-		}
+	state, err := state.LoadStateTree(cbor.NewCborStore(opts.Bstore), opts.StateBase)
+	if err != nil {
+		return nil, err
+	}
+
+	circToReport, err := opts.CircSupplyCalc(ctx, opts.Epoch, state)
+	if err != nil {
+		return nil, err
 	}
 
 	fvmOpts := ffi.FVMOpts{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/ipfs/go-cid"
 )
@@ -18,8 +19,10 @@ type Interface interface {
 	Flush(ctx context.Context) (cid.Cid, error)
 }
 
+var experimentalUseFvm = os.Getenv("LOTUS_USE_FVM_EXPERIMENTAL") == "1"
+
 func NewVM(ctx context.Context, opts *VMOpts) (Interface, error) {
-	if os.Getenv("LOTUS_USE_FVM_EXPERIMENTAL") == "1" {
+	if experimentalUseFvm && opts.NetworkVersion >= network.Version15 {
 		return NewFVM(ctx, opts)
 	}
 
