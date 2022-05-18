@@ -12,16 +12,15 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-bitfield"
-	"github.com/filecoin-project/go-state-types/crypto"
-	"github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
-
-	miner2 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
-
-	power6 "github.com/filecoin-project/specs-actors/v6/actors/builtin/power"
-
-	"github.com/docker/go-units"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/builtin"
+	miner8 "github.com/filecoin-project/go-state-types/builtin/v8/miner"
+	"github.com/filecoin-project/go-state-types/crypto"
+	power7 "github.com/filecoin-project/specs-actors/v7/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
+
+	"github.com/docker/go-units"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/build"
@@ -83,7 +82,7 @@ var minerFaultsCmd = &cli.Command{
 			return err
 		}
 
-		faults, err := faultBf.All(miner2.SectorsMax)
+		faults, err := faultBf.All(abi.MaxSectorNumber)
 		if err != nil {
 			return err
 		}
@@ -224,7 +223,7 @@ var minerCreateCmd = &cli.Command{
 			return xerrors.Errorf("getting post proof type: %w", err)
 		}
 
-		params, err := actors.SerializeParams(&power6.CreateMinerParams{
+		params, err := actors.SerializeParams(&power7.CreateMinerParams{
 			Owner:               owner,
 			Worker:              worker,
 			WindowPoStProofType: spt,
@@ -260,7 +259,7 @@ var minerCreateCmd = &cli.Command{
 			return xerrors.Errorf("create miner failed: exit code %d", mw.Receipt.ExitCode)
 		}
 
-		var retval power6.CreateMinerReturn
+		var retval power7.CreateMinerReturn
 		if err := retval.UnmarshalCBOR(bytes.NewReader(mw.Receipt.Return)); err != nil {
 			return err
 		}
@@ -425,7 +424,7 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 			return xerrors.Errorf("getting proof size: %w", err)
 		}
 
-		var partitions []miner.PoStPartition
+		var partitions []miner8.PoStPartition
 		var proofs []proof.PoStProof
 
 		emptyProof := proof.PoStProof{
@@ -433,7 +432,7 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 			ProofBytes: make([]byte, 0, proofSize)}
 
 		for _, partition := range partitionIndices {
-			newPartition := miner.PoStPartition{
+			newPartition := miner8.PoStPartition{
 				Index:   uint64(partition),
 				Skipped: bitfield.New(),
 			}
@@ -441,7 +440,7 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 			proofs = append(proofs, emptyProof)
 		}
 
-		params := miner.SubmitWindowedPoStParams{
+		params := miner8.SubmitWindowedPoStParams{
 			Deadline:         deadline.Index,
 			Partitions:       partitions,
 			Proofs:           proofs,
@@ -458,7 +457,7 @@ var sendInvalidWindowPoStCmd = &cli.Command{
 		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   minfo.Worker,
 			To:     maddr,
-			Method: miner.Methods.SubmitWindowedPoSt,
+			Method: builtin.MethodsMiner.SubmitWindowedPoSt,
 			Value:  big.Zero(),
 			Params: sp,
 		}, nil)
@@ -541,7 +540,7 @@ var generateAndSendConsensusFaultCmd = &cli.Command{
 		buf2 := new(bytes.Buffer)
 		err = blockHeaderCopy.MarshalCBOR(buf2)
 
-		params := miner2.ReportConsensusFaultParams{
+		params := miner8.ReportConsensusFaultParams{
 			BlockHeader1: buf1.Bytes(),
 			BlockHeader2: buf2.Bytes(),
 		}
@@ -554,7 +553,7 @@ var generateAndSendConsensusFaultCmd = &cli.Command{
 		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   minfo.Worker,
 			To:     maddr,
-			Method: miner.Methods.ReportConsensusFault,
+			Method: builtin.MethodsMiner.ReportConsensusFault,
 			Value:  big.Zero(),
 			Params: sp,
 		}, nil)
