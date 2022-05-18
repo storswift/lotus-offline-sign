@@ -15,7 +15,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
+
+	"github.com/filecoin-project/lotus/chain/actors"
 
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
@@ -79,6 +82,7 @@ var StateCmd = &cli.Command{
 		StateExecTraceCmd,
 		StateNtwkVersionCmd,
 		StateMinerProvingDeadlineCmd,
+		StateSysActorCIDsCmd,
 	},
 }
 
@@ -1870,5 +1874,67 @@ var StateNtwkVersionCmd = &cli.Command{
 		fmt.Printf("Network Version: %d\n", nv)
 
 		return nil
+	},
+}
+
+var StateSysActorCIDsCmd = &cli.Command{
+	Name:  "actor-cids",
+	Usage: "Returns the system actor cids",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Present() {
+			return ShowHelp(cctx, fmt.Errorf("doesn't expect any arguments"))
+		}
+
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+
+		ts, err := LoadTipSet(ctx, cctx, api)
+		if err != nil {
+			return err
+		}
+
+		nv, err := api.StateNetworkVersion(ctx, ts.Key())
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Network Version: %d\n", nv)
+
+		actorVersion, err := actors.VersionForNetwork(nv)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Actor Version: %d\n", actorVersion)
+
+		tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "Actor\tCID\t")
+
+		for _, name := range []string{
+			actors.AccountKey,
+			actors.CronKey,
+			actors.InitKey,
+			actors.MarketKey,
+			actors.MinerKey,
+			actors.MultisigKey,
+			actors.PaychKey,
+			actors.PowerKey,
+			actors.RewardKey,
+			actors.SystemKey,
+			actors.VerifregKey,
+		} {
+			sysActorCID, ok := actors.GetActorCodeID(actorVersion, name)
+			if !ok {
+				return xerrors.Errorf("error getting actor %v code id for actor version %d", name,
+					actorVersion)
+			}
+			_, _ = fmt.Fprintf(tw, "%v\t%v\n", name, sysActorCID)
+
+		}
+		return tw.Flush()
 	},
 }
