@@ -66,6 +66,8 @@ var CommonCommands = []*cli.Command{
 	VersionCmd,
 }
 
+const FilNATO = float64(100_000_000)
+
 var Commands = []*cli.Command{
 	WithCategory("basic", sendCmd),
 	WithCategory("basic", walletCmd),
@@ -80,6 +82,11 @@ var Commands = []*cli.Command{
 	WithCategory("developer", LogCmd),
 	WithCategory("developer", WaitApiCmd),
 	WithCategory("developer", FetchParamCmd),
+	WithCategory("offline", offlineWithdrawCmd),
+	WithCategory("offline", offlineSendCmd),
+	WithCategory("offline", offlineActorControl),
+	WithCategory("offline", offlineActorSetOwnerCmd),
+	WithCategory("offline", offlineMpoolReplaceCmd),
 	WithCategory("network", NetCmd),
 	WithCategory("network", SyncCmd),
 	WithCategory("status", StatusCmd),

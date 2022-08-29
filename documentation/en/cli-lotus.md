@@ -30,6 +30,12 @@ COMMANDS:
      log           Manage logging
      wait-api      Wait for lotus api to come online
      fetch-params  Fetch proving parameters
+   OFFLINE:
+     offline-withdraw    withdraw available balance
+     offline-send        Offline Send funds between accounts
+     offline-control     Offline Manage control addresses
+     offline-set-owner   Offlin-Set owner address
+     offline-replace     replace a message in the mempool
    NETWORK:
      net   Manage P2P Network
      sync  Inspect or interact with the chain syncer
