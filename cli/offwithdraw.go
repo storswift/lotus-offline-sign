@@ -4,21 +4,24 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/builtin"
+	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
+
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet/key"
 	"github.com/filecoin-project/lotus/lib/sigs"
-	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
-	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 )
 
 var offlineWithdrawCmd = &cli.Command{
 	Name:      "offline-withdraw",
-	Usage:     "offline withdraw available balance",
+	Usage:     "Offline withdraw available balance",
 	ArgsUsage: "[amount (FIL)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{

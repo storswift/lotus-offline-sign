@@ -30,15 +30,15 @@ COMMANDS:
      log           Manage logging
      wait-api      Wait for lotus api to come online
      fetch-params  Fetch proving parameters
-   OFFLINE:
-     offline-withdraw    withdraw available balance
-     offline-send        Offline Send funds between accounts
-     offline-control     Offline Manage control addresses
-     offline-set-owner   Offlin-Set owner address
-     offline-replace     replace a message in the mempool
    NETWORK:
      net   Manage P2P Network
      sync  Inspect or interact with the chain syncer
+   OFFLINE:
+     offline-withdraw   Offline withdraw available balance
+     offline-send       Offline send funds between accounts
+     offline-control    Offline manage control addresses
+     offline-set-owner  Offline set owner address
+     offline-replace    Offline replace a message in the mempool
    STATUS:
      status  Check node status
 
@@ -2968,6 +2968,180 @@ USAGE:
 
 OPTIONS:
    --epoch value  checkpoint the tipset at the given epoch (default: 0)
+   
+```
+
+## lotus offline-withdraw
+```
+NAME:
+   lotus offline-withdraw - Offline withdraw available balance
+
+USAGE:
+   lotus offline-withdraw [command options] [amount (FIL)]
+
+CATEGORY:
+   OFFLINE
+
+OPTIONS:
+   --gas-feecap value  gas feecap for new message (default: 0)
+   --key value         owner key
+   --maddr value       minerId
+   --owner value       owner address
+   --premium value     gas premium (default: 0)
+   
+```
+
+## lotus offline-send
+```
+NAME:
+   lotus offline-send - Offline send funds between accounts
+
+USAGE:
+   lotus offline-send [command options] [targetAddress] [amount]
+
+CATEGORY:
+   OFFLINE
+
+OPTIONS:
+   --from value        optionally specify the account to send funds from
+   --gas-feecap value  gas feecap for new message (default: 0)
+   --key value         from address  key
+   
+```
+
+## lotus offline-control
+```
+NAME:
+   lotus offline-control - Offline manage control addresses
+
+USAGE:
+   lotus offline-control command [command options] [arguments...]
+
+COMMANDS:
+   set                    Set control address(-es)
+   propose-change-worker  Propose a worker address change
+   confirm-change-worker  Confirm a worker address change
+   help, h                Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help (default: false)
+   
+```
+
+### lotus offline-control set
+```
+NAME:
+   lotus offline-control set - Set control address(-es)
+
+USAGE:
+   lotus offline-control set [command options] [...address]
+
+OPTIONS:
+   --key value    owner key
+   --maddr value  miner address
+   --owner value  owner address
+   
+```
+
+### lotus offline-control propose-change-worker
+```
+NAME:
+   lotus offline-control propose-change-worker - Propose a worker address change
+
+USAGE:
+   lotus offline-control propose-change-worker [command options] [arguments...]
+
+OPTIONS:
+   --key value      owner key
+   --maddr value    miner address
+   --newaddr value  new worker address
+   --owner value    owner full  address
+   --really-do-it   Actually send transaction performing the action (default: false)
+   
+```
+
+### lotus offline-control confirm-change-worker
+```
+NAME:
+   lotus offline-control confirm-change-worker - Confirm a worker address change
+
+USAGE:
+   lotus offline-control confirm-change-worker [command options] [arguments...]
+
+OPTIONS:
+   --key value      owner key
+   --maddr value    miner address
+   --newaddr value  new worker address
+   --owner value    owner full address
+   --really-do-it   Actually send transaction performing the action (default: false)
+   
+```
+
+## lotus offline-set-owner
+```
+NAME:
+   lotus offline-set-owner - Offline set owner address
+
+USAGE:
+   lotus offline-set-owner command [command options] [address]
+
+COMMANDS:
+   one      Set owner address
+   two      Set owner address
+   help, h  Shows a list of commands or help for one command
+
+OPTIONS:
+   --actor value, -a value  specify other actor to check state for (read only)
+   --help, -h               show help (default: false)
+   
+```
+
+### lotus offline-set-owner one
+```
+NAME:
+   lotus offline-set-owner one - Set owner address
+
+USAGE:
+   lotus offline-set-owner one [command options] [address]
+
+OPTIONS:
+   --key value    owner key
+   --owner value  owner address
+   
+```
+
+### lotus offline-set-owner two
+```
+NAME:
+   lotus offline-set-owner two - Set owner address
+
+USAGE:
+   lotus offline-set-owner two [command options] [address]
+
+OPTIONS:
+   --key value    owner key
+   --owner value  owner address
+   
+```
+
+## lotus offline-replace
+```
+NAME:
+   lotus offline-replace - Offline replace a message in the mempool
+
+USAGE:
+   lotus offline-replace [command options] <from nonce> | <message-cid>
+
+CATEGORY:
+   OFFLINE
+
+OPTIONS:
+   --auto               automatically reprice the specified message (default: false)
+   --gas-feecap value   gas feecap for new message
+   --gas-limit value    gas price for new message (default: 0)
+   --gas-premium value  gas price for new message
+   --key value          owner key
+   --max-fee value      Spend up to X FIL for this message (applicable for auto mode)
    
 ```
 
