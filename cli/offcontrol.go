@@ -5,20 +5,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
-	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
-
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/builtin"
-	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
-
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/wallet/key"
+	wallet "github.com/filecoin-project/lotus/chain/wallet/key"
 	"github.com/filecoin-project/lotus/lib/sigs"
+	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var offlineActorControl = &cli.Command{
@@ -159,7 +156,7 @@ var actorControlSet = &cli.Command{
 			return xerrors.Errorf("serializing message: %w", err)
 		}
 
-		sig, err := sigs.Sign(key.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
+		sig, err := sigs.Sign(wallet.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
 		if err != nil {
 			return err
 		}
@@ -305,7 +302,7 @@ var actorProposeChangeWorker = &cli.Command{
 			return xerrors.Errorf("serializing message: %w", err)
 		}
 
-		sig, err := sigs.Sign(key.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
+		sig, err := sigs.Sign(wallet.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
 		if err != nil {
 			return err
 		}
@@ -339,7 +336,7 @@ var actorProposeChangeWorker = &cli.Command{
 			return err
 		}
 		if mi.NewWorker != newAddr {
-			return fmt.Errorf("proposed worker address change not reflected on chain: expected '%s', found '%s'", maddr, mi.NewWorker)
+			return fmt.Errorf("Proposed worker address change not reflected on chain: expected '%s', found '%s'", maddr, mi.NewWorker)
 		}
 
 		fmt.Fprintf(cctx.App.Writer, "Worker key change to %s successfully proposed.\n", maddr)
@@ -434,7 +431,7 @@ var actorConfirmChangeWorker = &cli.Command{
 		msg := &types.Message{
 			From:   owner,
 			To:     maddr,
-			Method: builtin.MethodsMiner.ConfirmUpdateWorkerKey,
+			Method: builtin.MethodsMiner.ConfirmChangeWorkerAddress,
 			Value:  big.Zero(),
 		}
 
@@ -462,7 +459,7 @@ var actorConfirmChangeWorker = &cli.Command{
 			return xerrors.Errorf("serializing message: %w", err)
 		}
 
-		sig, err := sigs.Sign(key.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
+		sig, err := sigs.Sign(wallet.ActSigType(ownerKey.Type), ownerKey.PrivateKey, mb.Cid().Bytes())
 		if err != nil {
 			return err
 		}
@@ -502,3 +499,4 @@ var actorConfirmChangeWorker = &cli.Command{
 		return nil
 	},
 }
+

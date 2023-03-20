@@ -115,12 +115,14 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/koalacxr/quantile v0.0.1
 	github.com/libp2p/go-buffer-pool v0.1.0
-	github.com/libp2p/go-libp2p v0.22.0
-	github.com/libp2p/go-libp2p-kad-dht v0.17.0
-	github.com/libp2p/go-libp2p-peerstore v0.7.1
-	github.com/libp2p/go-libp2p-pubsub v0.8.0
-	github.com/libp2p/go-libp2p-record v0.1.3
-	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
+	github.com/libp2p/go-libp2p v0.26.0
+	github.com/libp2p/go-libp2p-consensus v0.0.1
+	github.com/libp2p/go-libp2p-gorpc v0.5.0
+	github.com/libp2p/go-libp2p-kad-dht v0.21.0
+	github.com/libp2p/go-libp2p-pubsub v0.9.0
+	github.com/libp2p/go-libp2p-raft v0.4.0
+	github.com/libp2p/go-libp2p-record v0.2.0
+	github.com/libp2p/go-libp2p-routing-helpers v0.4.0
 	github.com/libp2p/go-maddr-filter v0.1.0
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/mattn/go-isatty v0.0.17
@@ -195,6 +197,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/drand/kyber-bls12381 v0.2.3 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/etclabscore/go-jsonschema-walk v0.0.6 // indirect
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.0 // indirect
 	github.com/filecoin-project/go-amt-ipld/v3 v3.1.0 // indirect
@@ -262,20 +265,8 @@ require (
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
-<<<<<<< HEAD
-	github.com/libp2p/go-libp2p-connmgr v0.4.0 // indirect
-	github.com/libp2p/go-libp2p-core v0.20.0 // indirect
-	github.com/libp2p/go-libp2p-gostream v0.4.0 // indirect
-	github.com/libp2p/go-libp2p-kbucket v0.4.7 // indirect
-	github.com/libp2p/go-libp2p-loggables v0.1.0 // indirect
-	github.com/libp2p/go-libp2p-netutil v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-noise v0.5.0 // indirect
-	github.com/libp2p/go-libp2p-tls v0.5.0 // indirect
-	github.com/libp2p/go-msgio v0.2.0 // indirect
-=======
 	github.com/libp2p/go-libp2p-gostream v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.5.0 // indirect
->>>>>>> upstream/master
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
 	github.com/libp2p/go-reuseport v0.2.0 // indirect
