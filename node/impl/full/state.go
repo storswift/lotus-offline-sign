@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
+	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
-	minertypes "github.com/filecoin-project/go-state-types/builtin/v8/miner"
+	minertypes "github.com/filecoin-project/go-state-types/builtin/v9/miner"
+	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/cbor"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -29,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/datacap"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/multisig"
@@ -176,6 +180,9 @@ func (m *StateModule) StateMinerInfo(ctx context.Context, actor address.Address,
 		SectorSize:                 info.SectorSize,
 		WindowPoStPartitionSectors: info.WindowPoStPartitionSectors,
 		ConsensusFaultElapsed:      info.ConsensusFaultElapsed,
+		Beneficiary:                info.Beneficiary,
+		BeneficiaryTerm:            &info.BeneficiaryTerm,
+		PendingBeneficiaryTerm:     info.PendingBeneficiaryTerm,
 	}
 
 	if info.PendingWorkerKey != nil {
@@ -478,7 +485,12 @@ func (m *StateModule) StateLookupID(ctx context.Context, addr address.Address, t
 		return address.Undef, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
 
-	return m.StateManager.LookupID(ctx, addr, ts)
+	ret, err := m.StateManager.LookupID(ctx, addr, ts)
+	if err != nil && xerrors.Is(err, types.ErrActorNotFound) {
+		return address.Undef, &api.ErrActorNotFound{}
+	}
+
+	return ret, err
 }
 
 func (a *StateAPI) StateLookupRobustAddress(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error) {
@@ -496,7 +508,7 @@ func (m *StateModule) StateAccountKey(ctx context.Context, addr address.Address,
 		return address.Undef, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
 
-	return m.StateManager.ResolveToKeyAddress(ctx, addr, ts)
+	return m.StateManager.ResolveToDeterministicAddress(ctx, addr, ts)
 }
 
 func (a *StateAPI) StateReadState(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*api.ActorState, error) {
@@ -604,16 +616,22 @@ func (m *StateModule) StateWaitMsg(ctx context.Context, msg cid.Cid, confidence 
 
 		vmsg := cmsg.VMMessage()
 
-		t, err := stmgr.GetReturnType(ctx, m.StateManager, vmsg.To, vmsg.Method, ts)
-		if err != nil {
+		switch t, err := stmgr.GetReturnType(ctx, m.StateManager, vmsg.To, vmsg.Method, ts); {
+		case errors.Is(err, stmgr.ErrMetadataNotFound):
+			// This is not necessarily an error -- EVM methods (and in the future native actors) may
+			// return just bytes, and in the not so distant future we'll have native wasm actors
+			// that are by definition not in the registry.
+			// So in this case, log a debug message and retun the raw bytes.
+			log.Debugf("failed to get return type: %s", err)
+			returndec = recpt.Return
+		case err != nil:
 			return nil, xerrors.Errorf("failed to get return type: %w", err)
+		default:
+			if err := t.UnmarshalCBOR(bytes.NewReader(recpt.Return)); err != nil {
+				return nil, err
+			}
+			returndec = t
 		}
-
-		if err := t.UnmarshalCBOR(bytes.NewReader(recpt.Return)); err != nil {
-			return nil, err
-		}
-
-		returndec = t
 	}
 
 	return &api.MsgLookup{
@@ -758,6 +776,135 @@ func (m *StateModule) StateMarketStorageDeal(ctx context.Context, dealId abi.Dea
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
 	return stmgr.GetStorageDeal(ctx, m.StateManager, dealId, ts)
+}
+
+func (a *StateAPI) StateGetAllocationForPendingDeal(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*verifreg.Allocation, error) {
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	st, err := a.StateManager.GetMarketState(ctx, ts)
+	if err != nil {
+		return nil, err
+	}
+
+	allocationId, err := st.GetAllocationIdForPendingDeal(dealId)
+	if err != nil {
+		return nil, err
+	}
+	if allocationId == verifregtypes.NoAllocationID {
+		return nil, nil
+	}
+
+	dealState, err := a.StateMarketStorageDeal(ctx, dealId, tsk)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.StateGetAllocation(ctx, dealState.Proposal.Client, allocationId, tsk)
+}
+
+func (a *StateAPI) StateGetAllocation(ctx context.Context, clientAddr address.Address, allocationId verifreg.AllocationId, tsk types.TipSetKey) (*verifreg.Allocation, error) {
+	idAddr, err := a.StateLookupID(ctx, clientAddr, tsk)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	st, err := a.StateManager.GetVerifregState(ctx, ts)
+	if err != nil {
+		return nil, err
+	}
+
+	allocation, found, err := st.GetAllocation(idAddr, allocationId)
+	if err != nil {
+		return nil, xerrors.Errorf("getting allocation: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+
+	return allocation, nil
+}
+
+func (a *StateAPI) StateGetAllocations(ctx context.Context, clientAddr address.Address, tsk types.TipSetKey) (map[verifreg.AllocationId]verifreg.Allocation, error) {
+	idAddr, err := a.StateLookupID(ctx, clientAddr, tsk)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	st, err := a.StateManager.GetVerifregState(ctx, ts)
+	if err != nil {
+		return nil, xerrors.Errorf("loading verifreg state: %w", err)
+	}
+
+	allocations, err := st.GetAllocations(idAddr)
+	if err != nil {
+		return nil, xerrors.Errorf("getting allocations: %w", err)
+	}
+
+	return allocations, nil
+}
+
+func (a *StateAPI) StateGetClaim(ctx context.Context, providerAddr address.Address, claimId verifreg.ClaimId, tsk types.TipSetKey) (*verifreg.Claim, error) {
+	idAddr, err := a.StateLookupID(ctx, providerAddr, tsk)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	st, err := a.StateManager.GetVerifregState(ctx, ts)
+	if err != nil {
+		return nil, err
+	}
+
+	claim, found, err := st.GetClaim(idAddr, claimId)
+	if err != nil {
+		return nil, xerrors.Errorf("getting claim: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+
+	return claim, nil
+}
+
+func (a *StateAPI) StateGetClaims(ctx context.Context, providerAddr address.Address, tsk types.TipSetKey) (map[verifreg.ClaimId]verifreg.Claim, error) {
+	idAddr, err := a.StateLookupID(ctx, providerAddr, tsk)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+
+	st, err := a.StateManager.GetVerifregState(ctx, ts)
+	if err != nil {
+		return nil, xerrors.Errorf("loading verifreg state: %w", err)
+	}
+
+	claims, err := st.GetClaims(idAddr)
+	if err != nil {
+		return nil, xerrors.Errorf("getting claims: %w", err)
+	}
+
+	return claims, nil
 }
 
 func (a *StateAPI) StateComputeDataCID(ctx context.Context, maddr address.Address, sectorType abi.RegisteredSealProof, deals []abi.DealID, tsk types.TipSetKey) (cid.Cid, error) {
@@ -906,6 +1053,7 @@ func (a *StateAPI) StateSectorPreCommitInfo(ctx context.Context, maddr address.A
 	return pci, err
 }
 
+// Returns nil, nil if sector is not found
 func (m *StateModule) StateSectorGetInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error) {
 	ts, err := m.Chain.GetTipSetFromKey(ctx, tsk)
 	if err != nil {
@@ -953,7 +1101,7 @@ func (a *StateAPI) StateListMessages(ctx context.Context, match *api.MessageMatc
 		_, err := a.StateLookupID(ctx, match.To, tsk)
 
 		// if the recipient doesn't exist at the start point, we're not gonna find any matches
-		if xerrors.Is(err, types.ErrActorNotFound) {
+		if xerrors.Is(err, &api.ErrActorNotFound{}) {
 			return nil, nil
 		}
 
@@ -964,7 +1112,7 @@ func (a *StateAPI) StateListMessages(ctx context.Context, match *api.MessageMatc
 		_, err := a.StateLookupID(ctx, match.From, tsk)
 
 		// if the sender doesn't exist at the start point, we're not gonna find any matches
-		if xerrors.Is(err, types.ErrActorNotFound) {
+		if xerrors.Is(err, &api.ErrActorNotFound{}) {
 			return nil, nil
 		}
 
@@ -1185,16 +1333,20 @@ func (a *StateAPI) StateMinerPreCommitDepositForPower(ctx context.Context, maddr
 	store := a.Chain.ActorStore(ctx)
 
 	var sectorWeight abi.StoragePower
-	if act, err := state.GetActor(market.Address); err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading market actor %s: %w", maddr, err)
-	} else if s, err := market.Load(store, act); err != nil {
-		return types.EmptyInt, xerrors.Errorf("loading market actor state %s: %w", maddr, err)
-	} else if w, vw, err := s.VerifyDealsForActivation(maddr, pci.DealIDs, ts.Height(), pci.Expiration); err != nil {
-		return types.EmptyInt, xerrors.Errorf("verifying deals for activation: %w", err)
+	if a.StateManager.GetNetworkVersion(ctx, ts.Height()) <= network.Version16 {
+		if act, err := state.GetActor(market.Address); err != nil {
+			return types.EmptyInt, xerrors.Errorf("loading market actor %s: %w", maddr, err)
+		} else if s, err := market.Load(store, act); err != nil {
+			return types.EmptyInt, xerrors.Errorf("loading market actor state %s: %w", maddr, err)
+		} else if w, vw, err := s.VerifyDealsForActivation(maddr, pci.DealIDs, ts.Height(), pci.Expiration); err != nil {
+			return types.EmptyInt, xerrors.Errorf("verifying deals for activation: %w", err)
+		} else {
+			// NB: not exactly accurate, but should always lead us to *over* estimate, not under
+			duration := pci.Expiration - ts.Height()
+			sectorWeight = builtin.QAPowerForWeight(ssize, duration, w, vw)
+		}
 	} else {
-		// NB: not exactly accurate, but should always lead us to *over* estimate, not under
-		duration := pci.Expiration - ts.Height()
-		sectorWeight = builtin.QAPowerForWeight(ssize, duration, w, vw)
+		sectorWeight = minertypes.QAPowerMax(ssize)
 	}
 
 	var powerSmoothed builtin.FilterEstimate
@@ -1386,26 +1538,56 @@ func (a *StateAPI) StateVerifierStatus(ctx context.Context, addr address.Address
 // Returns zero if there is no entry in the data cap table for the
 // address.
 func (m *StateModule) StateVerifiedClientStatus(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error) {
-	act, err := m.StateGetActor(ctx, verifreg.Address, tsk)
-	if err != nil {
-		return nil, err
-	}
-
 	aid, err := m.StateLookupID(ctx, addr, tsk)
 	if err != nil {
 		log.Warnf("lookup failure %v", err)
 		return nil, err
 	}
 
-	vrs, err := verifreg.Load(m.StateManager.ChainStore().ActorStore(ctx), act)
+	nv, err := m.StateNetworkVersion(ctx, tsk)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to load verified registry state: %w", err)
+		return nil, err
 	}
 
-	verified, dcap, err := vrs.VerifiedClientDataCap(aid)
+	av, err := actorstypes.VersionForNetwork(nv)
 	if err != nil {
-		return nil, xerrors.Errorf("looking up verified client: %w", err)
+		return nil, err
 	}
+
+	var dcap abi.StoragePower
+	var verified bool
+	if av <= 8 {
+		act, err := m.StateGetActor(ctx, verifreg.Address, tsk)
+		if err != nil {
+			return nil, err
+		}
+
+		vrs, err := verifreg.Load(m.StateManager.ChainStore().ActorStore(ctx), act)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to load verified registry state: %w", err)
+		}
+
+		verified, dcap, err = vrs.VerifiedClientDataCap(aid)
+		if err != nil {
+			return nil, xerrors.Errorf("looking up verified client: %w", err)
+		}
+	} else {
+		act, err := m.StateGetActor(ctx, datacap.Address, tsk)
+		if err != nil {
+			return nil, err
+		}
+
+		dcs, err := datacap.Load(m.StateManager.ChainStore().ActorStore(ctx), act)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to load datacap actor state: %w", err)
+		}
+
+		verified, dcap, err = dcs.VerifiedClientDataCap(aid)
+		if err != nil {
+			return nil, xerrors.Errorf("looking up verified client: %w", err)
+		}
+	}
+
 	if !verified {
 		return nil, nil
 	}
@@ -1536,7 +1718,7 @@ func (m *StateModule) StateNetworkVersion(ctx context.Context, tsk types.TipSetK
 }
 
 func (a *StateAPI) StateActorCodeCIDs(ctx context.Context, nv network.Version) (map[string]cid.Cid, error) {
-	actorVersion, err := actors.VersionForNetwork(nv)
+	actorVersion, err := actorstypes.VersionForNetwork(nv)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid network version %d: %w", nv, err)
 	}
@@ -1550,7 +1732,7 @@ func (a *StateAPI) StateActorCodeCIDs(ctx context.Context, nv network.Version) (
 }
 
 func (a *StateAPI) StateActorManifestCID(ctx context.Context, nv network.Version) (cid.Cid, error) {
-	actorVersion, err := actors.VersionForNetwork(nv)
+	actorVersion, err := actorstypes.VersionForNetwork(nv)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("invalid network version")
 	}
@@ -1623,6 +1805,9 @@ func (a *StateAPI) StateGetNetworkParams(ctx context.Context) (*api.NetworkParam
 			UpgradeHyperdriveHeight:  build.UpgradeHyperdriveHeight,
 			UpgradeChocolateHeight:   build.UpgradeChocolateHeight,
 			UpgradeOhSnapHeight:      build.UpgradeOhSnapHeight,
+			UpgradeSkyrHeight:        build.UpgradeSkyrHeight,
+			UpgradeSharkHeight:       build.UpgradeSharkHeight,
+			UpgradeHyggeHeight:       build.UpgradeHyggeHeight,
 		},
 	}, nil
 }

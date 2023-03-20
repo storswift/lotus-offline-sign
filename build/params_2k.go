@@ -10,9 +10,9 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/network"
 
-	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 )
 
@@ -20,9 +20,10 @@ const BootstrappersFile = ""
 const GenesisFile = ""
 
 var NetworkBundle = "devnet"
-var BundleOverrides map[actors.Version]string
+var BundleOverrides map[actorstypes.Version]string
+var ActorDebugging = true
 
-const GenesisNetworkVersion = network.Version16
+const GenesisNetworkVersion = network.Version17
 
 var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
@@ -55,6 +56,10 @@ var UpgradeChocolateHeight = abi.ChainEpoch(-17)
 var UpgradeOhSnapHeight = abi.ChainEpoch(-18)
 
 var UpgradeSkyrHeight = abi.ChainEpoch(-19)
+
+var UpgradeSharkHeight = abi.ChainEpoch(-20)
+
+var UpgradeHyggeHeight = abi.ChainEpoch(30)
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
@@ -107,6 +112,8 @@ func init() {
 	UpgradeChocolateHeight = getUpgradeHeight("LOTUS_CHOCOLATE_HEIGHT", UpgradeChocolateHeight)
 	UpgradeOhSnapHeight = getUpgradeHeight("LOTUS_OHSNAP_HEIGHT", UpgradeOhSnapHeight)
 	UpgradeSkyrHeight = getUpgradeHeight("LOTUS_SKYR_HEIGHT", UpgradeSkyrHeight)
+	UpgradeSharkHeight = getUpgradeHeight("LOTUS_SHARK_HEIGHT", UpgradeSharkHeight)
+	UpgradeHyggeHeight = getUpgradeHeight("LOTUS_HYGGE_HEIGHT", UpgradeHyggeHeight)
 
 	BuildType |= Build2k
 
@@ -126,5 +133,9 @@ const SlashablePowerDelay = 20
 const InteractivePoRepConfidence = 6
 
 const BootstrapPeerThreshold = 1
+
+// ChainId defines the chain ID used in the Ethereum JSON-RPC endpoint.
+// As per https://github.com/ethereum-lists/chains
+const Eip155ChainId = 31415926
 
 var WhitelistedBlock = cid.Undef

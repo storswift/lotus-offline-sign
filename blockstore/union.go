@@ -3,19 +3,18 @@ package blockstore
 import (
 	"context"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 )
 
 type unionBlockstore []Blockstore
 
 // Union returns an unioned blockstore.
 //
-// * Reads return from the first blockstore that has the value, querying in the
-//   supplied order.
-// * Writes (puts and deletes) are broadcast to all stores.
-//
+//   - Reads return from the first blockstore that has the value, querying in the
+//     supplied order.
+//   - Writes (puts and deletes) are broadcast to all stores.
 func Union(stores ...Blockstore) Blockstore {
 	return unionBlockstore(stores)
 }
@@ -54,6 +53,15 @@ func (m unionBlockstore) GetSize(ctx context.Context, cid cid.Cid) (size int, er
 		}
 	}
 	return size, err
+}
+
+func (m unionBlockstore) Flush(ctx context.Context) (err error) {
+	for _, bs := range m {
+		if err = bs.Flush(ctx); err != nil {
+			break
+		}
+	}
+	return err
 }
 
 func (m unionBlockstore) Put(ctx context.Context, block blocks.Block) (err error) {

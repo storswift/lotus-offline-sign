@@ -6,7 +6,9 @@ import (
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"golang.org/x/xerrors"
 
+	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/manifest"
 
 	bstore "github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/actors"
@@ -15,7 +17,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-func SetupCronActor(ctx context.Context, bs bstore.Blockstore, av actors.Version) (*types.Actor, error) {
+func SetupCronActor(ctx context.Context, bs bstore.Blockstore, av actorstypes.Version) (*types.Actor, error) {
 	cst := cbor.NewCborStore(bs)
 	st, err := cron.MakeState(adt.WrapStore(ctx, cbor.NewCborStore(bs)), av)
 	if err != nil {
@@ -27,7 +29,7 @@ func SetupCronActor(ctx context.Context, bs bstore.Blockstore, av actors.Version
 		return nil, err
 	}
 
-	actcid, ok := actors.GetActorCodeID(av, actors.CronKey)
+	actcid, ok := actors.GetActorCodeID(av, manifest.CronKey)
 	if !ok {
 		return nil, xerrors.Errorf("failed to get cron actor code ID for actors version %d", av)
 	}

@@ -20,7 +20,8 @@ const (
 	TTCommit1    TaskType = "seal/v0/commit/1"
 	TTCommit2    TaskType = "seal/v0/commit/2"
 
-	TTFinalize TaskType = "seal/v0/finalize"
+	TTFinalize         TaskType = "seal/v0/finalize"
+	TTFinalizeUnsealed TaskType = "seal/v0/finalizeunsealed"
 
 	TTFetch  TaskType = "seal/v0/fetch"
 	TTUnseal TaskType = "seal/v0/unseal"
@@ -31,8 +32,12 @@ const (
 	TTRegenSectorKey        TaskType = "seal/v0/regensectorkey"
 	TTFinalizeReplicaUpdate TaskType = "seal/v0/finalize/replicaupdate"
 
+	TTDownloadSector TaskType = "seal/v0/download/sector"
+
 	TTGenerateWindowPoSt  TaskType = "post/v0/windowproof"
 	TTGenerateWinningPoSt TaskType = "post/v0/winningproof"
+
+	TTNoop TaskType = ""
 )
 
 var order = map[TaskType]int{
@@ -48,11 +53,13 @@ var order = map[TaskType]int{
 	TTCommit1:             2,
 	TTUnseal:              1,
 
-	TTFetch:    -1,
-	TTFinalize: -2,
+	TTFetch:            -1,
+	TTDownloadSector:   -2,
+	TTFinalize:         -3,
+	TTFinalizeUnsealed: -4,
 
-	TTGenerateWindowPoSt:  -3,
-	TTGenerateWinningPoSt: -4, // most priority
+	TTGenerateWindowPoSt:  -5,
+	TTGenerateWinningPoSt: -6, // most priority
 }
 
 var shortNames = map[TaskType]string{
@@ -64,7 +71,8 @@ var shortNames = map[TaskType]string{
 	TTCommit1:    "C1",
 	TTCommit2:    "C2",
 
-	TTFinalize: "FIN",
+	TTFinalize:         "FIN",
+	TTFinalizeUnsealed: "FUS",
 
 	TTFetch:  "GET",
 	TTUnseal: "UNS",
@@ -74,6 +82,8 @@ var shortNames = map[TaskType]string{
 	TTProveReplicaUpdate2:   "PR2",
 	TTRegenSectorKey:        "GSK",
 	TTFinalizeReplicaUpdate: "FRU",
+
+	TTDownloadSector: "DL",
 
 	TTGenerateWindowPoSt:  "WDP",
 	TTGenerateWinningPoSt: "WNP",
@@ -94,6 +104,11 @@ func (a TaskType) WorkerType() string {
 	default:
 		return WorkerSealing
 	}
+}
+
+// SectorSized returns true if the task operates on a specific sector size
+func (a TaskType) SectorSized() bool {
+	return a != TTDataCid
 }
 
 func (a TaskType) MuchLess(b TaskType) (bool, bool) {

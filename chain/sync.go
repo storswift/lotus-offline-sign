@@ -11,10 +11,10 @@ import (
 
 	"github.com/Gurpartap/async"
 	"github.com/hashicorp/go-multierror"
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	ipld "github.com/ipfs/go-ipld-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -60,16 +60,16 @@ var (
 // Syncer is in charge of running the chain synchronization logic. As such, it
 // is tasked with these functions, amongst others:
 //
-//  * Fast-forwards the chain as it learns of new TipSets from the network via
-//    the SyncManager.
-//  * Applies the fork choice rule to select the correct side when confronted
-//    with a fork in the network.
-//  * Requests block headers and messages from other peers when not available
-//    in our BlockStore.
-//  * Tracks blocks marked as bad in a cache.
-//  * Keeps the BlockStore and ChainStore consistent with our view of the world,
-//    the latter of which in turn informs other components when a reorg has been
-//    committed.
+//   - Fast-forwards the chain as it learns of new TipSets from the network via
+//     the SyncManager.
+//   - Applies the fork choice rule to select the correct side when confronted
+//     with a fork in the network.
+//   - Requests block headers and messages from other peers when not available
+//     in our BlockStore.
+//   - Tracks blocks marked as bad in a cache.
+//   - Keeps the BlockStore and ChainStore consistent with our view of the world,
+//     the latter of which in turn informs other components when a reorg has been
+//     committed.
 //
 // The Syncer does not run workers itself. It's mainly concerned with
 // ensuring a consistent state of chain consensus. The reactive and network-
@@ -228,7 +228,7 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 
 	// TODO: IMPORTANT(GARBAGE) this needs to be put in the 'temporary' side of
 	// the blockstore
-	if err := syncer.store.PersistBlockHeaders(ctx, fts.TipSet().Blocks()...); err != nil {
+	if err := syncer.store.PersistTipset(ctx, fts.TipSet()); err != nil {
 		log.Warn("failed to persist incoming block header: ", err)
 		return false
 	}
@@ -671,9 +671,9 @@ func extractSyncState(ctx context.Context) *SyncerState {
 //  2. Check the consistency of beacon entries in the from tipset. We check
 //     total equality of the BeaconEntries in each block.
 //  3. Traverse the chain backwards, for each tipset:
-//  	3a. Load it from the chainstore; if found, it move on to its parent.
-//      3b. Query our peers via client in batches, requesting up to a
-//      maximum of 500 tipsets every time.
+//     3a. Load it from the chainstore; if found, it move on to its parent.
+//     3b. Query our peers via client in batches, requesting up to a
+//     maximum of 500 tipsets every time.
 //
 // Once we've concluded, if we find a mismatching tipset at the height where the
 // anchor tipset should be, we are facing a fork, and we invoke Syncer#syncFork
@@ -1145,7 +1145,7 @@ func persistMessages(ctx context.Context, bs bstore.Blockstore, bst *exchange.Co
 		}
 	}
 	for _, m := range bst.Secpk {
-		if m.Signature.Type != crypto.SigTypeSecp256k1 {
+		if m.Signature.Type != crypto.SigTypeSecp256k1 && m.Signature.Type != crypto.SigTypeDelegated {
 			return xerrors.Errorf("unknown signature type on message %s: %q", m.Cid(), m.Signature.Type)
 		}
 		//log.Infof("putting secp256k1 message: %s", m.Cid())
@@ -1171,7 +1171,7 @@ func persistMessages(ctx context.Context, bs bstore.Blockstore, bst *exchange.Co
 //     else we must drop part of our chain to connect to the peer's head
 //     (referred to as "forking").
 //
-//	2. StagePersistHeaders: now that we've collected the missing headers,
+//  2. StagePersistHeaders: now that we've collected the missing headers,
 //     augmented by those on the other side of a fork, we persist them to the
 //     BlockStore.
 //
@@ -1198,16 +1198,13 @@ func (syncer *Syncer) collectChain(ctx context.Context, ts *types.TipSet, hts *t
 
 	ss.SetStage(api.StagePersistHeaders)
 
-	toPersist := make([]*types.BlockHeader, 0, len(headers)*int(build.BlocksPerEpoch))
 	for _, ts := range headers {
-		toPersist = append(toPersist, ts.Blocks()...)
+		if err := syncer.store.PersistTipset(ctx, ts); err != nil {
+			err = xerrors.Errorf("failed to persist synced tipset to the chainstore: %w", err)
+			ss.Error(err)
+			return err
+		}
 	}
-	if err := syncer.store.PersistBlockHeaders(ctx, toPersist...); err != nil {
-		err = xerrors.Errorf("failed to persist synced blocks to the chainstore: %w", err)
-		ss.Error(err)
-		return err
-	}
-	toPersist = nil
 
 	ss.SetStage(api.StageMessages)
 

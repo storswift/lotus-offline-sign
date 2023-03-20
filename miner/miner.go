@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
@@ -30,6 +30,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 	lrand "github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/types"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/journal"
 )
 
@@ -60,7 +61,7 @@ func randTimeOffset(width time.Duration) time.Duration {
 // NewMiner instantiates a miner with a concrete WinningPoStProver and a miner
 // address (which can be different from the worker's address).
 func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Address, sf *slashfilter.SlashFilter, j journal.Journal) *Miner {
-	arc, err := lru.NewARC(10000)
+	arc, err := lru.NewARC[abi.ChainEpoch, bool](10000)
 	if err != nil {
 		panic(err)
 	}
@@ -121,7 +122,7 @@ type Miner struct {
 	// minedBlockHeights is a safeguard that caches the last heights we mined.
 	// It is consulted before publishing a newly mined block, for a sanity check
 	// intended to avoid slashings in case of a bug.
-	minedBlockHeights *lru.ARCCache
+	minedBlockHeights *lru.ARCCache[abi.ChainEpoch, bool]
 
 	evtTypes [1]journal.EventType
 	journal  journal.Journal
@@ -179,26 +180,26 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 
 // mine runs the mining loop. It performs the following:
 //
-//  1.  Queries our current best currently-known mining candidate (tipset to
-//      build upon).
-//  2.  Waits until the propagation delay of the network has elapsed (currently
-//      6 seconds). The waiting is done relative to the timestamp of the best
-//      candidate, which means that if it's way in the past, we won't wait at
-//      all (e.g. in catch-up or rush mining).
-//  3.  After the wait, we query our best mining candidate. This will be the one
-//      we'll work with.
-//  4.  Sanity check that we _actually_ have a new mining base to mine on. If
-//      not, wait one epoch + propagation delay, and go back to the top.
-//  5.  We attempt to mine a block, by calling mineOne (refer to godocs). This
-//      method will either return a block if we were eligible to mine, or nil
-//      if we weren't.
-//  6a. If we mined a block, we update our state and push it out to the network
-//      via gossipsub.
-//  6b. If we didn't mine a block, we consider this to be a nil round on top of
-//      the mining base we selected. If other miner or miners on the network
-//      were eligible to mine, we will receive their blocks via gossipsub and
-//      we will select that tipset on the next iteration of the loop, thus
-//      discarding our null round.
+//  1. Queries our current best currently-known mining candidate (tipset to
+//     build upon).
+//  2. Waits until the propagation delay of the network has elapsed (currently
+//     6 seconds). The waiting is done relative to the timestamp of the best
+//     candidate, which means that if it's way in the past, we won't wait at
+//     all (e.g. in catch-up or rush mining).
+//  3. After the wait, we query our best mining candidate. This will be the one
+//     we'll work with.
+//  4. Sanity check that we _actually_ have a new mining base to mine on. If
+//     not, wait one epoch + propagation delay, and go back to the top.
+//  5. We attempt to mine a block, by calling mineOne (refer to godocs). This
+//     method will either return a block if we were eligible to mine, or nil
+//     if we weren't.
+//     6a. If we mined a block, we update our state and push it out to the network
+//     via gossipsub.
+//     6b. If we didn't mine a block, we consider this to be a nil round on top of
+//     the mining base we selected. If other miner or miners on the network
+//     were eligible to mine, we will receive their blocks via gossipsub and
+//     we will select that tipset on the next iteration of the loop, thus
+//     discarding our null round.
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
@@ -208,6 +209,8 @@ func (m *Miner) mine(ctx context.Context) {
 	var lastBase MiningBase
 minerLoop:
 	for {
+		ctx := cliutil.OnSingleNode(ctx)
+
 		select {
 		case <-m.stop:
 			stopping := m.stopping
@@ -328,13 +331,12 @@ minerLoop:
 				}
 			}
 
-			blkKey := fmt.Sprintf("%d", b.Header.Height)
-			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
+			if _, ok := m.minedBlockHeights.Get(b.Header.Height); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
 				continue
 			}
 
-			m.minedBlockHeights.Add(blkKey, true)
+			m.minedBlockHeights.Add(b.Header.Height, true)
 
 			if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
 				log.Errorf("failed to submit newly mined block: %+v", err)
@@ -416,7 +418,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 //
 // This method does the following:
 //
-//  1.
+//	1.
 func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (minedBlock *types.BlockMsg, err error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	tStart := build.Clock.Now()

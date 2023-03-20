@@ -9,8 +9,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/network"
 
-	"github.com/filecoin-project/lotus/chain/messagesigner"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -27,7 +28,8 @@ type Provider interface {
 	PutMessage(ctx context.Context, m types.ChainMsg) (cid.Cid, error)
 	PubSubPublish(string, []byte) error
 	GetActorAfter(address.Address, *types.TipSet) (*types.Actor, error)
-	StateAccountKeyAtFinality(context.Context, address.Address, *types.TipSet) (address.Address, error)
+	StateDeterministicAddressAtFinality(context.Context, address.Address, *types.TipSet) (address.Address, error)
+	StateNetworkVersion(context.Context, abi.ChainEpoch) network.Version
 	MessagesForBlock(context.Context, *types.BlockHeader) ([]*types.Message, []*types.SignedMessage, error)
 	MessagesForTipset(context.Context, *types.TipSet) ([]types.ChainMsg, error)
 	LoadTipSet(ctx context.Context, tsk types.TipSetKey) (*types.TipSet, error)
@@ -39,7 +41,7 @@ type mpoolProvider struct {
 	sm *stmgr.StateManager
 	ps *pubsub.PubSub
 
-	lite messagesigner.MpoolNonceAPI
+	lite MpoolNonceAPI
 }
 
 var _ Provider = (*mpoolProvider)(nil)
@@ -48,7 +50,7 @@ func NewProvider(sm *stmgr.StateManager, ps *pubsub.PubSub) Provider {
 	return &mpoolProvider{sm: sm, ps: ps}
 }
 
-func NewProviderLite(sm *stmgr.StateManager, ps *pubsub.PubSub, noncer messagesigner.MpoolNonceAPI) Provider {
+func NewProviderLite(sm *stmgr.StateManager, ps *pubsub.PubSub, noncer MpoolNonceAPI) Provider {
 	return &mpoolProvider{sm: sm, ps: ps, lite: noncer}
 }
 
@@ -72,7 +74,7 @@ func (mpp *mpoolProvider) PutMessage(ctx context.Context, m types.ChainMsg) (cid
 }
 
 func (mpp *mpoolProvider) PubSubPublish(k string, v []byte) error {
-	return mpp.ps.Publish(k, v) //nolint
+	return mpp.ps.Publish(k, v) // nolint
 }
 
 func (mpp *mpoolProvider) GetActorAfter(addr address.Address, ts *types.TipSet) (*types.Actor, error) {
@@ -100,8 +102,12 @@ func (mpp *mpoolProvider) GetActorAfter(addr address.Address, ts *types.TipSet) 
 	return st.GetActor(addr)
 }
 
-func (mpp *mpoolProvider) StateAccountKeyAtFinality(ctx context.Context, addr address.Address, ts *types.TipSet) (address.Address, error) {
-	return mpp.sm.ResolveToKeyAddressAtFinality(ctx, addr, ts)
+func (mpp *mpoolProvider) StateDeterministicAddressAtFinality(ctx context.Context, addr address.Address, ts *types.TipSet) (address.Address, error) {
+	return mpp.sm.ResolveToDeterministicAddressAtFinality(ctx, addr, ts)
+}
+
+func (mpp *mpoolProvider) StateNetworkVersion(ctx context.Context, height abi.ChainEpoch) network.Version {
+	return mpp.sm.GetNetworkVersion(ctx, height)
 }
 
 func (mpp *mpoolProvider) MessagesForBlock(ctx context.Context, h *types.BlockHeader) ([]*types.Message, []*types.SignedMessage, error) {

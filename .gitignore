@@ -1,6 +1,3 @@
-/AppDir
-/appimage-builder-cache
-*.AppImage
 /lotus
 /lotus-miner
 /lotus-worker
@@ -9,7 +6,6 @@
 /lotus-chainwatch
 /lotus-shed
 /lotus-sim
-/lotus-pond
 /lotus-townhall
 /lotus-fountain
 /lotus-stats
@@ -21,8 +17,6 @@
 /docgen-md
 /docgen-openrpc
 /bench.json
-/lotuspond/front/node_modules
-/lotuspond/front/build
 /cmd/lotus-townhall/townhall/node_modules
 /cmd/lotus-townhall/townhall/build
 /cmd/lotus-townhall/townhall/package-lock.json
@@ -53,3 +47,8 @@ build/builtin-actors/v*
 build/builtin-actors/*.car
 
 dist/
+
+
+# The following files are checked into git and result
+# in dirty git state if removed from the docker context
+!extern/filecoin-ffi/rust/filecoin.pc

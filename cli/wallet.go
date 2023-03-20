@@ -251,8 +251,8 @@ var walletSetDefault = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		if !cctx.Args().Present() {
-			return fmt.Errorf("must pass address to set as default")
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		addr, err := address.NewFromString(cctx.Args().First())
@@ -260,6 +260,7 @@ var walletSetDefault = &cli.Command{
 			return err
 		}
 
+		fmt.Println("Default address set to:", addr)
 		return api.WalletSetDefault(ctx, addr)
 	},
 }
@@ -278,8 +279,8 @@ var walletExport = &cli.Command{
 
 		afmt := NewAppFmt(cctx.App)
 
-		if !cctx.Args().Present() {
-			return fmt.Errorf("must specify key to export")
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		addr, err := address.NewFromString(cctx.Args().First())
@@ -413,8 +414,8 @@ var walletSign = &cli.Command{
 
 		afmt := NewAppFmt(cctx.App)
 
-		if !cctx.Args().Present() || cctx.NArg() != 2 {
-			return fmt.Errorf("must specify signing address and message to sign")
+		if cctx.NArg() != 2 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		addr, err := address.NewFromString(cctx.Args().First())
@@ -456,8 +457,8 @@ var walletVerify = &cli.Command{
 
 		afmt := NewAppFmt(cctx.App)
 
-		if !cctx.Args().Present() || cctx.NArg() != 3 {
-			return fmt.Errorf("must specify signing address, message, and signature to verify")
+		if cctx.NArg() != 3 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		addr, err := address.NewFromString(cctx.Args().First())
@@ -508,8 +509,8 @@ var walletDelete = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		if !cctx.Args().Present() || cctx.NArg() != 1 {
-			return fmt.Errorf("must specify address to delete")
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		addr, err := address.NewFromString(cctx.Args().First())
@@ -517,6 +518,8 @@ var walletDelete = &cli.Command{
 			return err
 		}
 
+		fmt.Println("Soft deleting address:", addr)
+		fmt.Println("Hard deletion of the address in `~/.lotus/keystore` is needed for permanent removal")
 		return api.WalletDelete(ctx, addr)
 	},
 }
@@ -645,7 +648,7 @@ var walletMarketWithdraw = &cli.Command{
 		}
 
 		// check it executed successfully
-		if wait.Receipt.ExitCode != 0 {
+		if wait.Receipt.ExitCode.IsError() {
 			afmt.Println(cctx.App.Writer, "withdrawal failed!")
 			return err
 		}
@@ -698,8 +701,8 @@ var walletMarketAdd = &cli.Command{
 		afmt := NewAppFmt(cctx.App)
 
 		// Get amount param
-		if !cctx.Args().Present() {
-			return fmt.Errorf("must pass amount to add")
+		if cctx.NArg() < 1 {
+			return IncorrectNumArgs(cctx)
 		}
 		f, err := types.ParseFIL(cctx.Args().First())
 		if err != nil {

@@ -16,7 +16,6 @@ import (
 
 	tm "github.com/buger/goterm"
 	"github.com/docker/go-units"
-	"github.com/fatih/color"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-cidutil/cidenc"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,7 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	cborutil "github.com/filecoin-project/go-cbor-util"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
 
@@ -370,8 +369,8 @@ var dealsImportDataCmd = &cli.Command{
 
 		ctx := lcli.DaemonContext(cctx)
 
-		if cctx.Args().Len() < 2 {
-			return fmt.Errorf("must specify proposal CID and file path")
+		if cctx.NArg() != 2 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
 		propCid, err := cid.Decode(cctx.Args().Get(0))
@@ -617,8 +616,8 @@ var setSealDurationCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		if cctx.Args().Len() != 1 {
-			return xerrors.Errorf("must pass duration in minutes")
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
 		hs, err := strconv.ParseUint(cctx.Args().Get(0), 10, 64)
@@ -780,11 +779,6 @@ var transfersListCmd = &cli.Command{
 			Usage:   "print verbose transfer details",
 		},
 		&cli.BoolFlag{
-			Name:        "color",
-			Usage:       "use color in display output",
-			DefaultText: "depends on output being a TTY",
-		},
-		&cli.BoolFlag{
 			Name:  "completed",
 			Usage: "show completed data transfers",
 		},
@@ -798,10 +792,6 @@ var transfersListCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.IsSet("color") {
-			color.NoColor = !cctx.Bool("color")
-		}
-
 		api, closer, err := lcli.GetMarketsAPI(cctx)
 		if err != nil {
 			return err

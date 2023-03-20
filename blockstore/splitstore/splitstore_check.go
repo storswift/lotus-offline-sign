@@ -95,7 +95,7 @@ func (s *SplitStore) doCheck(curTs *types.TipSet) error {
 	}
 	defer visitor.Close() //nolint
 
-	err = s.walkChain(curTs, boundaryEpoch, boundaryEpoch, visitor,
+	size := s.walkChain(curTs, boundaryEpoch, boundaryEpoch, visitor,
 		func(c cid.Cid) error {
 			if isUnitaryObject(c) {
 				return errStopWalk
@@ -125,7 +125,7 @@ func (s *SplitStore) doCheck(curTs *types.TipSet) error {
 			}
 
 			return nil
-		})
+		}, func(cid.Cid) error { return nil })
 
 	if err != nil {
 		err = xerrors.Errorf("error walking chain: %w", err)
@@ -133,7 +133,7 @@ func (s *SplitStore) doCheck(curTs *types.TipSet) error {
 		return err
 	}
 
-	log.Infow("check done", "cold", *coldCnt, "missing", *missingCnt)
+	log.Infow("check done", "cold", *coldCnt, "missing", *missingCnt, "walk size", size)
 	write("--")
 	write("cold: %d missing: %d", *coldCnt, *missingCnt)
 	write("DONE")

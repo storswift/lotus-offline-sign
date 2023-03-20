@@ -63,7 +63,7 @@ func (sm *mockStateManager) setPaychState(a address.Address, actor *types.Actor,
 	sm.paychState[a] = mockPchState{actor, state}
 }
 
-func (sm *mockStateManager) ResolveToKeyAddress(ctx context.Context, addr address.Address, ts *types.TipSet) (address.Address, error) {
+func (sm *mockStateManager) ResolveToDeterministicAddress(ctx context.Context, addr address.Address, ts *types.TipSet) (address.Address, error) {
 	sm.lk.Lock()
 	defer sm.lk.Unlock()
 	keyAddr, ok := sm.accountState[addr]
@@ -250,5 +250,5 @@ func (pchapi *mockPaychAPI) addSigningKey(key []byte) {
 }
 
 func (pchapi *mockPaychAPI) StateNetworkVersion(ctx context.Context, tsk types.TipSetKey) (network.Version, error) {
-	return build.NewestNetworkVersion, nil
+	return build.TestNetworkVersion, nil
 }

@@ -3,19 +3,20 @@ package v0api
 import (
 	"context"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	textselector "github.com/ipld/go-ipld-selector-text-lite"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
+	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
+	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
 	abinetwork "github.com/filecoin-project/go-state-types/network"
@@ -140,7 +141,7 @@ type FullNode interface {
 
 	// ChainGetPath returns a set of revert/apply operations needed to get from
 	// one tipset to another, for example:
-	//```
+	// ```
 	//        to
 	//         ^
 	// from   tAA
@@ -149,7 +150,7 @@ type FullNode interface {
 	//  ^---*--^
 	//      ^
 	//     tRR
-	//```
+	// ```
 	// Would return `[revert(tBA), apply(tAB), apply(tAA)]`
 	ChainGetPath(ctx context.Context, from types.TipSetKey, to types.TipSetKey) ([]*api.HeadChange, error) //perm:read
 
@@ -366,12 +367,12 @@ type FullNode interface {
 	ClientCancelRetrievalDeal(ctx context.Context, dealid retrievalmarket.DealID) error //perm:write
 
 	// ClientUnimport removes references to the specified file from filestore
-	//ClientUnimport(path string)
+	// ClientUnimport(path string)
 
 	// ClientListImports lists imported files and their root CIDs
 	ClientListImports(ctx context.Context) ([]api.Import, error) //perm:write
 
-	//ClientListAsks() []Ask
+	// ClientListAsks() []Ask
 
 	// MethodGroup: State
 	// The State methods are used to query, inspect, and interact with chain state.
@@ -531,6 +532,16 @@ type FullNode interface {
 	StateMarketDeals(context.Context, types.TipSetKey) (map[string]*api.MarketDeal, error) //perm:read
 	// StateMarketStorageDeal returns information about the indicated deal
 	StateMarketStorageDeal(context.Context, abi.DealID, types.TipSetKey) (*api.MarketDeal, error) //perm:read
+	// StateGetAllocationForPendingDeal returns the allocation for a given deal ID of a pending deal.
+	StateGetAllocationForPendingDeal(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*verifregtypes.Allocation, error) //perm:read
+	// StateGetAllocation returns the allocation for a given address and allocation ID.
+	StateGetAllocation(ctx context.Context, clientAddr address.Address, allocationId verifregtypes.AllocationId, tsk types.TipSetKey) (*verifregtypes.Allocation, error) //perm:read
+	// StateGetAllocations returns the all the allocations for a given client.
+	StateGetAllocations(ctx context.Context, clientAddr address.Address, tsk types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) //perm:read
+	// StateGetClaim returns the claim for a given address and claim ID.
+	StateGetClaim(ctx context.Context, providerAddr address.Address, claimId verifregtypes.ClaimId, tsk types.TipSetKey) (*verifregtypes.Claim, error) //perm:read
+	// StateGetClaims returns the all the claims for a given provider.
+	StateGetClaims(ctx context.Context, providerAddr address.Address, tsk types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) //perm:read
 	// StateLookupID retrieves the ID address of the given address
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error) //perm:read
 	// StateAccountKey returns the public key address of the given ID address
@@ -630,14 +641,14 @@ type FullNode interface {
 	// It takes the following params: <multisig address>, <start epoch>, <end epoch>
 	MsigGetVested(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error) //perm:read
 
-	//MsigGetPending returns pending transactions for the given multisig
-	//wallet. Once pending transactions are fully approved, they will no longer
-	//appear here.
+	// MsigGetPending returns pending transactions for the given multisig
+	// wallet. Once pending transactions are fully approved, they will no longer
+	// appear here.
 	MsigGetPending(context.Context, address.Address, types.TipSetKey) ([]*api.MsigTransaction, error) //perm:read
 
 	// MsigCreate creates a multisig wallet
 	// It takes the following params: <required number of senders>, <approving addresses>, <unlock duration>
-	//<initial balance>, <sender address of the create msg>, <gas price>
+	// <initial balance>, <sender address of the create msg>, <gas price>
 	MsigCreate(context.Context, uint64, []address.Address, abi.ChainEpoch, types.BigInt, address.Address, types.BigInt) (cid.Cid, error) //perm:sign
 	// MsigPropose proposes a multisig message
 	// It takes the following params: <multisig address>, <recipient address>, <value to transfer>,

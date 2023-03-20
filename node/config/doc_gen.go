@@ -325,14 +325,14 @@ regardless of this number.`,
 			Type: "string",
 
 			Comment: `A command used for fine-grained evaluation of storage deals
-see https://docs.filecoin.io/mine/lotus/miner-configuration/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
+see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
 		},
 		{
 			Name: "RetrievalFilter",
 			Type: "string",
 
 			Comment: `A command used for fine-grained evaluation of retrieval deals
-see https://docs.filecoin.io/mine/lotus/miner-configuration/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
+see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
 		},
 		{
 			Name: "RetrievalPricing",
@@ -341,10 +341,85 @@ see https://docs.filecoin.io/mine/lotus/miner-configuration/#using-filters-for-f
 			Comment: ``,
 		},
 	},
+	"Events": []DocField{
+		{
+			Name: "DisableRealTimeFilterAPI",
+			Type: "bool",
+
+			Comment: `EnableEthRPC enables APIs that
+DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
+The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.`,
+		},
+		{
+			Name: "DisableHistoricFilterAPI",
+			Type: "bool",
+
+			Comment: `DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
+that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
+The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.`,
+		},
+		{
+			Name: "FilterTTL",
+			Type: "Duration",
+
+			Comment: `FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
+this time become eligible for automatic deletion.`,
+		},
+		{
+			Name: "MaxFilters",
+			Type: "int",
+
+			Comment: `MaxFilters specifies the maximum number of filters that may exist at any one time.`,
+		},
+		{
+			Name: "MaxFilterResults",
+			Type: "int",
+
+			Comment: `MaxFilterResults specifies the maximum number of results that can be accumulated by an actor event filter.`,
+		},
+		{
+			Name: "MaxFilterHeightRange",
+			Type: "uint64",
+
+			Comment: `MaxFilterHeightRange specifies the maximum range of heights that can be used in a filter (to avoid querying
+the entire chain)`,
+		},
+		{
+			Name: "DatabasePath",
+			Type: "string",
+
+			Comment: `DatabasePath is the full path to a sqlite database that will be used to index actor events to
+support the historic filter APIs. If the database does not exist it will be created. The directory containing
+the database must already exist and be writeable. If a relative path is provided here, sqlite treats it as
+relative to the CWD (current working directory).`,
+		},
+	},
 	"FeeConfig": []DocField{
 		{
 			Name: "DefaultMaxFee",
 			Type: "types.FIL",
+
+			Comment: ``,
+		},
+	},
+	"FevmConfig": []DocField{
+		{
+			Name: "EnableEthRPC",
+			Type: "bool",
+
+			Comment: `EnableEthRPC enables eth_ rpc, and enables storing a mapping of eth transaction hashes to filecoin message Cids.
+This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be disabled by config options above.`,
+		},
+		{
+			Name: "EthTxHashMappingLifetimeDays",
+			Type: "int",
+
+			Comment: `EthTxHashMappingLifetimeDays the transaction hash lookup database will delete mappings that have been stored for more than x days
+Set to 0 to keep all mappings`,
+		},
+		{
+			Name: "Events",
+			Type: "Events",
 
 			Comment: ``,
 		},
@@ -371,6 +446,18 @@ see https://docs.filecoin.io/mine/lotus/miner-configuration/#using-filters-for-f
 		{
 			Name: "Chainstore",
 			Type: "Chainstore",
+
+			Comment: ``,
+		},
+		{
+			Name: "Cluster",
+			Type: "UserRaftConfig",
+
+			Comment: ``,
+		},
+		{
+			Name: "Fevm",
+			Type: "FevmConfig",
 
 			Comment: ``,
 		},
@@ -640,6 +727,29 @@ After changing this option, confirm that the new value works in your setup by in
 'lotus-miner proving compute window-post 0'`,
 		},
 		{
+			Name: "SingleCheckTimeout",
+			Type: "Duration",
+
+			Comment: `Maximum amount of time a proving pre-check can take for a sector. If the check times out the sector will be skipped
+
+WARNING: Setting this value too low risks in sectors being skipped even though they are accessible, just reading the
+test challenge took longer than this timeout
+WARNING: Setting this value too high risks missing PoSt deadline in case IO operations related to this sector are
+blocked (e.g. in case of disconnected NFS mount)`,
+		},
+		{
+			Name: "PartitionCheckTimeout",
+			Type: "Duration",
+
+			Comment: `Maximum amount of time a proving pre-check can take for an entire partition. If the check times out, sectors in
+the partition which didn't get checked on time will be skipped
+
+WARNING: Setting this value too low risks in sectors being skipped even though they are accessible, just reading the
+test challenge took longer than this timeout
+WARNING: Setting this value too high risks missing PoSt deadline in case IO operations related to this partition are
+blocked or slow`,
+		},
+		{
 			Name: "DisableBuiltinWindowPoSt",
 			Type: "bool",
 
@@ -698,11 +808,9 @@ After changing this option, confirm that the new value works in your setup by in
 A single partition may contain up to 2349 32GiB sectors, or 2300 64GiB sectors.
 
 The maximum number of sectors which can be proven in a single PoSt message is 25000 in network version 16, which
-means that a single message can prove at most 10 partinions
+means that a single message can prove at most 10 partitions
 
-In some cases when submitting PoSt messages which are recovering sectors, the default network limit may still be
-too high to fit in the block gas limit; In those cases it may be necessary to set this value to something lower
-than 10; Note that setting this value lower may result in less efficient gas use - more messages will be sent,
+Note that setting this value lower may result in less efficient gas use - more messages will be sent,
 to prove each deadline, resulting in more total gas use (but each message will have lower gas limit)
 
 Setting this value above the network limit has no effect`,
@@ -716,6 +824,19 @@ there may be too many recoveries to fit in a BlockGasLimit.
 In those cases it may be necessary to set this value to something low (eg 1);
 Note that setting this value lower may result in less efficient gas use - more messages will be sent than needed,
 resulting in more total gas use (but each message will have lower gas limit)`,
+		},
+		{
+			Name: "SingleRecoveringPartitionPerPostMessage",
+			Type: "bool",
+
+			Comment: `Enable single partition per PoSt Message for partitions containing recovery sectors
+
+In cases when submitting PoSt messages which contain recovering sectors, the default network limit may still be
+too high to fit in the block gas limit. In those cases, it becomes useful to only house the single partition
+with recovering sectors in the post message
+
+Note that setting this value lower may result in less efficient gas use - more messages will be sent,
+to prove each deadline, resulting in more total gas use (but each message will have lower gas limit)`,
 		},
 	},
 	"Pubsub": []DocField{
@@ -747,6 +868,35 @@ Type: Array of multiaddress peerinfo strings, must include peerid (/p2p/12D3K...
 			Type: "string",
 
 			Comment: ``,
+		},
+		{
+			Name: "JsonTracer",
+			Type: "string",
+
+			Comment: `Path to file that will be used to output tracer content in JSON format.
+If present tracer will save data to defined file.
+Format: file path`,
+		},
+		{
+			Name: "ElasticSearchTracer",
+			Type: "string",
+
+			Comment: `Connection string for elasticsearch instance.
+If present tracer will save data to elasticsearch.
+Format: https://<username>:<password>@<elasticsearch_url>:<port>/`,
+		},
+		{
+			Name: "ElasticSearchIndex",
+			Type: "string",
+
+			Comment: `Name of elasticsearch index that will be used to save tracer data.
+This property is used only if ElasticSearchTracer propery is set.`,
+		},
+		{
+			Name: "TracerSourceAuth",
+			Type: "string",
+
+			Comment: `Auth token that will be passed with logs to elasticsearch - used for weighted peers score.`,
 		},
 	},
 	"RetrievalPricing": []DocField{
@@ -797,10 +947,16 @@ This parameter is ONLY applicable if the retrieval pricing policy strategy has b
 			Comment: ``,
 		},
 		{
+			Name: "AllowSectorDownload",
+			Type: "bool",
+
+			Comment: ``,
+		},
+		{
 			Name: "AllowAddPiece",
 			Type: "bool",
 
-			Comment: `Local worker config`,
+			Comment: ``,
 		},
 		{
 			Name: "AllowPreCommit1",
@@ -877,7 +1033,7 @@ If you see stuck Finalize tasks after enabling this setting, check
 		},
 		{
 			Name: "ResourceFiltering",
-			Type: "sealer.ResourceFilteringStrategy",
+			Type: "ResourceFilteringStrategy",
 
 			Comment: `ResourceFiltering instructs the system which resource filtering strategy
 to use when evaluating tasks against this worker. An empty value defaults
@@ -921,6 +1077,30 @@ flow when the volume of storage deals is lower.`,
 			Type: "uint64",
 
 			Comment: `Upper bound on how many sectors can be sealing+upgrading at the same time when upgrading CC sectors with deals (0 = MaxSealingSectorsForDeals)`,
+		},
+		{
+			Name: "MinUpgradeSectorExpiration",
+			Type: "uint64",
+
+			Comment: `When set to a non-zero value, minimum number of epochs until sector expiration required for sectors to be considered
+for upgrades (0 = DealMinDuration = 180 days = 518400 epochs)
+
+Note that if all deals waiting in the input queue have lifetimes longer than this value, upgrade sectors will be
+required to have expiration of at least the soonest-ending deal`,
+		},
+		{
+			Name: "MinTargetUpgradeSectorExpiration",
+			Type: "uint64",
+
+			Comment: `When set to a non-zero value, minimum number of epochs until sector expiration above which upgrade candidates will
+be selected based on lowest initial pledge.
+
+Target sector expiration is calculated by looking at the input deal queue, sorting it by deal expiration, and
+selecting N deals from the queue up to sector size. The target expiration will be Nth deal end epoch, or in case
+where there weren't enough deals to fill a sector, DealMaxDuration (540 days = 1555200 epochs)
+
+Setting this to a high value (for example to maximum deal duration - 1555200) will disable selection based on
+initial pledge - upgrade sectors will always be chosen based on longest expiration`,
 		},
 		{
 			Name: "CommittedCapacitySectorLifetime",
@@ -1075,7 +1255,7 @@ submitting proofs to the chain individually`,
 			Type: "string",
 
 			Comment: `ColdStoreType specifies the type of the coldstore.
-It can be "universal" (default) or "discard" for discarding cold blocks.`,
+It can be "messages" (default) to store only messages, "universal" to store all chain state or "discard" for discarding cold blocks.`,
 		},
 		{
 			Name: "HotStoreType",
@@ -1107,28 +1287,33 @@ A value of 0 disables, while a value 1 will do full GC in every compaction.
 Default is 20 (about once a week).`,
 		},
 		{
-			Name: "EnableColdStoreAutoPrune",
-			Type: "bool",
-
-			Comment: `EnableColdStoreAutoPrune turns on compaction of the cold store i.e. pruning
-where hotstore compaction occurs every finality epochs pruning happens every 3 finalities
-Default is false`,
-		},
-		{
-			Name: "ColdStoreFullGCFrequency",
+			Name: "HotStoreMaxSpaceTarget",
 			Type: "uint64",
 
-			Comment: `ColdStoreFullGCFrequency specifies how often to performa a full (moving) GC on the coldstore.
-Only applies if auto prune is enabled.  A value of 0 disables while a value of 1 will do
-full GC in every prune.
-Default is 7 (about once every a week)`,
+			Comment: `HotStoreMaxSpaceTarget sets a target max disk size for the hotstore. Splitstore GC
+will run moving GC if disk utilization gets within a threshold (150 GB) of the target.
+Splitstore GC will NOT run moving GC if the total size of the move would get
+within 50 GB of the target, and instead will run a more aggressive online GC.
+If both HotStoreFullGCFrequency and HotStoreMaxSpaceTarget are set then splitstore
+GC will trigger moving GC if either configuration condition is met.
+A reasonable minimum is 2x fully GCed hotstore size + 50 G buffer.
+At this minimum size moving GC happens every time, any smaller and moving GC won't
+be able to run. In spring 2023 this minimum is ~550 GB.`,
 		},
 		{
-			Name: "ColdStoreRetention",
-			Type: "int64",
+			Name: "HotStoreMaxSpaceThreshold",
+			Type: "uint64",
 
-			Comment: `ColdStoreRetention specifies the retention policy for data reachable from the chain, in
-finalities beyond the compaction boundary, default is 0, -1 retains everything`,
+			Comment: `When HotStoreMaxSpaceTarget is set Moving GC will be triggered when total moving size
+exceeds HotstoreMaxSpaceTarget - HotstoreMaxSpaceThreshold`,
+		},
+		{
+			Name: "HotstoreMaxSpaceSafetyBuffer",
+			Type: "uint64",
+
+			Comment: `Safety buffer to prevent moving GC from overflowing disk when HotStoreMaxSpaceTarget
+is set.  Moving GC will not occur when total moving size exceeds
+HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer`,
 		},
 	},
 	"StorageMiner": []DocField{
@@ -1185,6 +1370,68 @@ finalities beyond the compaction boundary, default is 0, -1 retains everything`,
 			Type: "DAGStoreConfig",
 
 			Comment: ``,
+		},
+	},
+	"UserRaftConfig": []DocField{
+		{
+			Name: "ClusterModeEnabled",
+			Type: "bool",
+
+			Comment: `EXPERIMENTAL. config to enabled node cluster with raft consensus`,
+		},
+		{
+			Name: "DataFolder",
+			Type: "string",
+
+			Comment: `A folder to store Raft's data.`,
+		},
+		{
+			Name: "InitPeersetMultiAddr",
+			Type: "[]string",
+
+			Comment: `InitPeersetMultiAddr provides the list of initial cluster peers for new Raft
+peers (with no prior state). It is ignored when Raft was already
+initialized or when starting in staging mode.`,
+		},
+		{
+			Name: "WaitForLeaderTimeout",
+			Type: "Duration",
+
+			Comment: `LeaderTimeout specifies how long to wait for a leader before
+failing an operation.`,
+		},
+		{
+			Name: "NetworkTimeout",
+			Type: "Duration",
+
+			Comment: `NetworkTimeout specifies how long before a Raft network
+operation is timed out`,
+		},
+		{
+			Name: "CommitRetries",
+			Type: "int",
+
+			Comment: `CommitRetries specifies how many times we retry a failed commit until
+we give up.`,
+		},
+		{
+			Name: "CommitRetryDelay",
+			Type: "Duration",
+
+			Comment: `How long to wait between retries`,
+		},
+		{
+			Name: "BackupsRotate",
+			Type: "int",
+
+			Comment: `BackupsRotate specifies the maximum number of Raft's DataFolder
+copies that we keep as backups (renaming) after cleanup.`,
+		},
+		{
+			Name: "Tracing",
+			Type: "bool",
+
+			Comment: `Tracing enables propagation of contexts across binary boundaries.`,
 		},
 	},
 	"Wallet": []DocField{

@@ -1,4 +1,4 @@
-//stm: #unit
+// stm: #unit
 package blockstore
 
 import (
@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	"github.com/raulk/clock"
 	"github.com/stretchr/testify/require"
 )

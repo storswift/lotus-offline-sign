@@ -1,6 +1,8 @@
 package reward
 
 import (
+	"github.com/ipfs/go-cid"
+	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/abi"
 	reward0 "github.com/filecoin-project/specs-actors/actors/builtin/reward"
 	"github.com/filecoin-project/lotus/chain/actors"
@@ -10,14 +12,14 @@ import (
 {{range .versions}}
     {{if (le . 7)}}
 	    builtin{{.}} "github.com/filecoin-project/specs-actors{{import .}}actors/builtin"
-	{{else}}
-        builtin{{.}} "github.com/filecoin-project/go-state-types/builtin"
     {{end}}
 {{end}}
+    builtin{{.latestVersion}} "github.com/filecoin-project/go-state-types/builtin"
 
 	"github.com/filecoin-project/lotus/chain/actors/adt"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/go-state-types/manifest"
 )
 
 var (
@@ -27,14 +29,14 @@ var (
 
 func Load(store adt.Store, act *types.Actor) (State, error) {
 	if name, av, ok := actors.GetActorMetaByCode(act.Code); ok {
-       if name != actors.RewardKey {
+       if name != manifest.RewardKey {
           return nil, xerrors.Errorf("actor code is not reward: %s", name)
        }
 
        switch av {
             {{range .versions}}
                 {{if (ge . 8)}}
-                case actors.Version{{.}}:
+                case actorstypes.Version{{.}}:
                      return load{{.}}(store, act.Head)
                  {{end}}
             {{end}}
@@ -53,10 +55,10 @@ func Load(store adt.Store, act *types.Actor) (State, error) {
 	return nil, xerrors.Errorf("unknown actor code %s", act.Code)
 }
 
-func MakeState(store adt.Store, av actors.Version, currRealizedPower abi.StoragePower) (State, error) {
+func MakeState(store adt.Store, av actorstypes.Version, currRealizedPower abi.StoragePower) (State, error) {
 	switch av {
 {{range .versions}}
-	case actors.Version{{.}}:
+	case actorstypes.Version{{.}}:
 		return make{{.}}(store, currRealizedPower)
 {{end}}
 }
@@ -65,6 +67,10 @@ func MakeState(store adt.Store, av actors.Version, currRealizedPower abi.Storage
 
 type State interface {
 	cbor.Marshaler
+
+    Code() cid.Cid
+    ActorKey() string
+    ActorVersion() actorstypes.Version
 
 	ThisEpochBaselinePower() (abi.StoragePower, error)
 	ThisEpochReward() (abi.StoragePower, error)
@@ -84,3 +90,10 @@ type State interface {
 }
 
 type AwardBlockRewardParams = reward0.AwardBlockRewardParams
+
+func AllCodes() []cid.Cid {
+	return []cid.Cid{ {{range .versions}}
+        (&state{{.}}{}).Code(),
+    {{- end}}
+    }
+}

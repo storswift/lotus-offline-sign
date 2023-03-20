@@ -97,7 +97,7 @@ func (sm *selectedMessages) tryToAdd(mc *msgChain) bool {
 		sm.msgs = append(sm.msgs, mc.msgs...)
 		sm.blsLimit -= l
 		sm.gasLimit -= mc.gasLimit
-	} else if mc.sigType == crypto.SigTypeSecp256k1 {
+	} else if mc.sigType == crypto.SigTypeSecp256k1 || mc.sigType == crypto.SigTypeDelegated {
 		if sm.secpLimit < l {
 			return false
 		}
@@ -123,7 +123,7 @@ func (sm *selectedMessages) tryToAddWithDeps(mc *msgChain, mp *MessagePool, base
 
 	if mc.sigType == crypto.SigTypeBLS {
 		smMsgLimit = sm.blsLimit
-	} else if mc.sigType == crypto.SigTypeSecp256k1 {
+	} else if mc.sigType == crypto.SigTypeSecp256k1 || mc.sigType == crypto.SigTypeDelegated {
 		smMsgLimit = sm.secpLimit
 	} else {
 		return false
@@ -174,7 +174,7 @@ func (sm *selectedMessages) tryToAddWithDeps(mc *msgChain, mp *MessagePool, base
 
 	if mc.sigType == crypto.SigTypeBLS {
 		sm.blsLimit -= chainMsgLimit
-	} else if mc.sigType == crypto.SigTypeSecp256k1 {
+	} else if mc.sigType == crypto.SigTypeSecp256k1 || mc.sigType == crypto.SigTypeDelegated {
 		sm.secpLimit -= chainMsgLimit
 	}
 
@@ -187,7 +187,7 @@ func (sm *selectedMessages) trimChain(mc *msgChain, mp *MessagePool, baseFee typ
 		if msgLimit > sm.blsLimit {
 			msgLimit = sm.blsLimit
 		}
-	} else if mc.sigType == crypto.SigTypeSecp256k1 {
+	} else if mc.sigType == crypto.SigTypeSecp256k1 || mc.sigType == crypto.SigTypeDelegated {
 		if msgLimit > sm.secpLimit {
 			msgLimit = sm.secpLimit
 		}
@@ -258,7 +258,7 @@ func (mp *MessagePool) selectMessagesOptimal(ctx context.Context, curTs, ts *typ
 	nextChain := 0
 	partitions := make([][]*msgChain, MaxBlocks)
 	for i := 0; i < MaxBlocks && nextChain < len(chains); i++ {
-		gasLimit := int64(build.BlockGasLimit)
+		gasLimit := build.BlockGasLimit
 		msgLimit := build.BlockMessageLimit
 		for nextChain < len(chains) {
 			chain := chains[nextChain]
@@ -590,7 +590,7 @@ func (mp *MessagePool) selectPriorityMessages(ctx context.Context, pending map[a
 	mpCfg := mp.getConfig()
 	result := &selectedMessages{
 		msgs:      make([]*types.SignedMessage, 0, mpCfg.SizeLimitLow),
-		gasLimit:  int64(build.BlockGasLimit),
+		gasLimit:  build.BlockGasLimit,
 		blsLimit:  cbg.MaxLength,
 		secpLimit: cbg.MaxLength,
 	}

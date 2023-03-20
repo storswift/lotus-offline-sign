@@ -13,8 +13,10 @@
   * [ChainCheckBlockstore](#ChainCheckBlockstore)
   * [ChainDeleteObj](#ChainDeleteObj)
   * [ChainExport](#ChainExport)
+  * [ChainExportRangeInternal](#ChainExportRangeInternal)
   * [ChainGetBlock](#ChainGetBlock)
   * [ChainGetBlockMessages](#ChainGetBlockMessages)
+  * [ChainGetEvents](#ChainGetEvents)
   * [ChainGetGenesis](#ChainGetGenesis)
   * [ChainGetMessage](#ChainGetMessage)
   * [ChainGetMessagesInTipset](#ChainGetMessagesInTipset)
@@ -27,6 +29,7 @@
   * [ChainGetTipSetByHeight](#ChainGetTipSetByHeight)
   * [ChainHasObj](#ChainHasObj)
   * [ChainHead](#ChainHead)
+  * [ChainHotGC](#ChainHotGC)
   * [ChainNotify](#ChainNotify)
   * [ChainPrune](#ChainPrune)
   * [ChainPutObj](#ChainPutObj)
@@ -65,6 +68,45 @@
   * [ClientStatelessDeal](#ClientStatelessDeal)
 * [Create](#Create)
   * [CreateBackup](#CreateBackup)
+* [Eth](#Eth)
+  * [EthAccounts](#EthAccounts)
+  * [EthAddressToFilecoinAddress](#EthAddressToFilecoinAddress)
+  * [EthBlockNumber](#EthBlockNumber)
+  * [EthCall](#EthCall)
+  * [EthChainId](#EthChainId)
+  * [EthEstimateGas](#EthEstimateGas)
+  * [EthFeeHistory](#EthFeeHistory)
+  * [EthGasPrice](#EthGasPrice)
+  * [EthGetBalance](#EthGetBalance)
+  * [EthGetBlockByHash](#EthGetBlockByHash)
+  * [EthGetBlockByNumber](#EthGetBlockByNumber)
+  * [EthGetBlockTransactionCountByHash](#EthGetBlockTransactionCountByHash)
+  * [EthGetBlockTransactionCountByNumber](#EthGetBlockTransactionCountByNumber)
+  * [EthGetCode](#EthGetCode)
+  * [EthGetFilterChanges](#EthGetFilterChanges)
+  * [EthGetFilterLogs](#EthGetFilterLogs)
+  * [EthGetLogs](#EthGetLogs)
+  * [EthGetMessageCidByTransactionHash](#EthGetMessageCidByTransactionHash)
+  * [EthGetStorageAt](#EthGetStorageAt)
+  * [EthGetTransactionByBlockHashAndIndex](#EthGetTransactionByBlockHashAndIndex)
+  * [EthGetTransactionByBlockNumberAndIndex](#EthGetTransactionByBlockNumberAndIndex)
+  * [EthGetTransactionByHash](#EthGetTransactionByHash)
+  * [EthGetTransactionByHashLimited](#EthGetTransactionByHashLimited)
+  * [EthGetTransactionCount](#EthGetTransactionCount)
+  * [EthGetTransactionHashByCid](#EthGetTransactionHashByCid)
+  * [EthGetTransactionReceipt](#EthGetTransactionReceipt)
+  * [EthGetTransactionReceiptLimited](#EthGetTransactionReceiptLimited)
+  * [EthMaxPriorityFeePerGas](#EthMaxPriorityFeePerGas)
+  * [EthNewBlockFilter](#EthNewBlockFilter)
+  * [EthNewFilter](#EthNewFilter)
+  * [EthNewPendingTransactionFilter](#EthNewPendingTransactionFilter)
+  * [EthProtocolVersion](#EthProtocolVersion)
+  * [EthSendRawTransaction](#EthSendRawTransaction)
+  * [EthSubscribe](#EthSubscribe)
+  * [EthUninstallFilter](#EthUninstallFilter)
+  * [EthUnsubscribe](#EthUnsubscribe)
+* [Filecoin](#Filecoin)
+  * [FilecoinAddressToEthAddress](#FilecoinAddressToEthAddress)
 * [Gas](#Gas)
   * [GasEstimateFeeCap](#GasEstimateFeeCap)
   * [GasEstimateGasLimit](#GasEstimateGasLimit)
@@ -135,6 +177,7 @@
   * [NetDisconnect](#NetDisconnect)
   * [NetFindPeer](#NetFindPeer)
   * [NetLimit](#NetLimit)
+  * [NetListening](#NetListening)
   * [NetPeerInfo](#NetPeerInfo)
   * [NetPeers](#NetPeers)
   * [NetPing](#NetPing)
@@ -144,6 +187,7 @@
   * [NetPubsubScores](#NetPubsubScores)
   * [NetSetLimit](#NetSetLimit)
   * [NetStat](#NetStat)
+  * [NetVersion](#NetVersion)
 * [Node](#Node)
   * [NodeStatus](#NodeStatus)
 * [Paych](#Paych)
@@ -164,6 +208,11 @@
   * [PaychVoucherCreate](#PaychVoucherCreate)
   * [PaychVoucherList](#PaychVoucherList)
   * [PaychVoucherSubmit](#PaychVoucherSubmit)
+* [Raft](#Raft)
+  * [RaftLeader](#RaftLeader)
+  * [RaftState](#RaftState)
+* [Start](#Start)
+  * [StartTime](#StartTime)
 * [State](#State)
   * [StateAccountKey](#StateAccountKey)
   * [StateActorCodeCIDs](#StateActorCodeCIDs)
@@ -178,7 +227,12 @@
   * [StateDecodeParams](#StateDecodeParams)
   * [StateEncodeParams](#StateEncodeParams)
   * [StateGetActor](#StateGetActor)
+  * [StateGetAllocation](#StateGetAllocation)
+  * [StateGetAllocationForPendingDeal](#StateGetAllocationForPendingDeal)
+  * [StateGetAllocations](#StateGetAllocations)
   * [StateGetBeaconEntry](#StateGetBeaconEntry)
+  * [StateGetClaim](#StateGetClaim)
+  * [StateGetClaims](#StateGetClaims)
   * [StateGetNetworkParams](#StateGetNetworkParams)
   * [StateGetRandomnessFromBeacon](#StateGetRandomnessFromBeacon)
   * [StateGetRandomnessFromTickets](#StateGetRandomnessFromTickets)
@@ -244,6 +298,8 @@
   * [WalletSignMessage](#WalletSignMessage)
   * [WalletValidateAddress](#WalletValidateAddress)
   * [WalletVerify](#WalletVerify)
+* [Web3](#Web3)
+  * [Web3ClientVersion](#Web3ClientVersion)
 ## 
 
 
@@ -423,6 +479,50 @@ Inputs:
 
 Response: `"Ynl0ZSBhcnJheQ=="`
 
+### ChainExportRangeInternal
+ChainExportRangeInternal triggers the export of a chain
+CAR-snapshot directly to disk. It is similar to ChainExport,
+except, depending on options, the snapshot can include receipts,
+messages and stateroots for the length between the specified head
+and tail, thus producing "archival-grade" snapshots that include
+all the on-chain data.  The header chain is included back to
+genesis and these snapshots can be used to initialize Filecoin
+nodes.
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ],
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ],
+  {
+    "WriteBufferSize": 123,
+    "NumWorkers": 123,
+    "IncludeMessages": true,
+    "IncludeReceipts": true,
+    "IncludeStateRoots": true
+  }
+]
+```
+
+Response: `{}`
+
 ### ChainGetBlock
 ChainGetBlock returns the block specified by the given CID.
 
@@ -569,6 +669,38 @@ Response:
     }
   ]
 }
+```
+
+### ChainGetEvents
+ChainGetEvents returns the events under an event AMT root CID.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
+]
+```
+
+Response:
+```json
+[
+  {
+    "Emitter": 1000,
+    "Entries": [
+      {
+        "Flags": 7,
+        "Key": "string value",
+        "Codec": 42,
+        "Value": "Ynl0ZSBhcnJheQ=="
+      }
+    ]
+  }
+]
 ```
 
 ### ChainGetGenesis
@@ -756,7 +888,10 @@ Response:
   {
     "ExitCode": 0,
     "Return": "Ynl0ZSBhcnJheQ==",
-    "GasUsed": 9
+    "GasUsed": 9,
+    "EventsRoot": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   }
 ]
 ```
@@ -942,6 +1077,26 @@ Response:
 }
 ```
 
+### ChainHotGC
+ChainHotGC does online (badger) GC on the hot store; only supported if you are using
+the splitstore
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  {
+    "Threshold": 12.3,
+    "Periodic": true,
+    "Moving": true
+  }
+]
+```
+
+Response: `{}`
+
 ### ChainNotify
 ChainNotify returns channel with chain head updates.
 First message is guaranteed to be of len == 1, and type == 'current'.
@@ -966,7 +1121,7 @@ Response:
 ```
 
 ### ChainPrune
-ChainPrune prunes the stored chain state and garbage collects; only supported if you
+ChainPrune forces compaction on cold store and garbage collects; only supported if you
 are using the splitstore
 
 
@@ -1281,7 +1436,9 @@ Inputs:
   {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  null
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 ]
 ```
 
@@ -1293,7 +1450,9 @@ Response:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "Piece": null,
+    "Piece": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Size": 42,
     "MinPrice": "0",
     "UnsealPrice": "0",
@@ -1304,7 +1463,9 @@ Response:
     "MinerPeer": {
       "Address": "f01234",
       "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "PieceCID": null
+      "PieceCID": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      }
     }
   }
 ]
@@ -1375,7 +1536,9 @@ Response:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "PieceCid": null,
+    "PieceCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PieceSize": 1024,
     "RawBlockSize": 42
   },
@@ -1479,7 +1642,9 @@ Response:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "PieceCid": null,
+    "PieceCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PieceSize": 1024,
     "RawBlockSize": 42
   },
@@ -1544,7 +1709,9 @@ Response:
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
   "ID": 5,
-  "PieceCID": null,
+  "PieceCID": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "PricePerByte": "0",
   "UnsealPrice": "0",
   "Status": 0,
@@ -1717,7 +1884,9 @@ Response:
       "Root": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       },
-      "PieceCid": null,
+      "PieceCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "PieceSize": 1024,
       "RawBlockSize": 42
     },
@@ -1782,7 +1951,9 @@ Response:
   {
     "Key": 50,
     "Err": "string value",
-    "Root": null,
+    "Root": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Source": "string value",
     "FilePath": "string value",
     "CARPath": "string value"
@@ -1806,7 +1977,9 @@ Response:
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
     "ID": 5,
-    "PieceCID": null,
+    "PieceCID": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PricePerByte": "0",
     "UnsealPrice": "0",
     "Status": 0,
@@ -1867,7 +2040,9 @@ Inputs:
   {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  null
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 ]
 ```
 
@@ -1878,7 +2053,9 @@ Response:
   "Root": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "Piece": null,
+  "Piece": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Size": 42,
   "MinPrice": "0",
   "UnsealPrice": "0",
@@ -1889,7 +2066,9 @@ Response:
   "MinerPeer": {
     "Address": "f01234",
     "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "PieceCID": null
+    "PieceCID": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   }
 }
 ```
@@ -1972,7 +2151,9 @@ Inputs:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "Piece": null,
+    "Piece": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "DataSelector": "Links/21/Hash/Links/42/Hash",
     "Size": 42,
     "Total": "0",
@@ -1984,8 +2165,11 @@ Inputs:
     "MinerPeer": {
       "Address": "f01234",
       "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "PieceCID": null
-    }
+      "PieceCID": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      }
+    },
+    "RemoteStore": "00000000-0000-0000-0000-000000000000"
   }
 ]
 ```
@@ -2043,7 +2227,9 @@ Inputs:
       "Root": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       },
-      "PieceCid": null,
+      "PieceCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "PieceSize": 1024,
       "RawBlockSize": 42
     },
@@ -2059,7 +2245,12 @@ Inputs:
 ]
 ```
 
-Response: `null`
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
 
 ### ClientStatelessDeal
 ClientStatelessDeal fire-and-forget-proposes an offline deal to a miner without subsequent tracking.
@@ -2076,7 +2267,9 @@ Inputs:
       "Root": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       },
-      "PieceCid": null,
+      "PieceCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "PieceSize": 1024,
       "RawBlockSize": 42
     },
@@ -2092,7 +2285,12 @@ Inputs:
 ]
 ```
 
-Response: `null`
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
 
 ## Create
 
@@ -2114,6 +2312,812 @@ Inputs:
 ```
 
 Response: `{}`
+
+## Eth
+These methods are used for Ethereum-compatible JSON-RPC calls
+
+EthAccounts will always return [] since we don't expect Lotus to manage private keys
+
+
+### EthAccounts
+There are not yet any comments for this method.
+
+Perms: read
+
+Inputs: `null`
+
+Response:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031"
+]
+```
+
+### EthAddressToFilecoinAddress
+EthAddressToFilecoinAddress converts an EthAddress into an f410 Filecoin Address
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031"
+]
+```
+
+Response: `"f01234"`
+
+### EthBlockNumber
+EthBlockNumber returns the height of the latest (heaviest) TipSet
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0x5"`
+
+### EthCall
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+    "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+    "gas": "0x5",
+    "gasPrice": "0x0",
+    "value": "0x0",
+    "data": "0x07"
+  },
+  "string value"
+]
+```
+
+Response: `"0x07"`
+
+### EthChainId
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0x5"`
+
+### EthEstimateGas
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+    "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+    "gas": "0x5",
+    "gasPrice": "0x0",
+    "value": "0x0",
+    "data": "0x07"
+  }
+]
+```
+
+Response: `"0x5"`
+
+### EthFeeHistory
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "Bw=="
+]
+```
+
+Response:
+```json
+{
+  "oldestBlock": "0x5",
+  "baseFeePerGas": [
+    "0x0"
+  ],
+  "gasUsedRatio": [
+    12.3
+  ],
+  "reward": []
+}
+```
+
+### EthGasPrice
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0x0"`
+
+### EthGetBalance
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "string value"
+]
+```
+
+Response: `"0x0"`
+
+### EthGetBlockByHash
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  true
+]
+```
+
+Response:
+```json
+{
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "parentHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "sha3Uncles": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "miner": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "stateRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "transactionsRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "receiptsRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "logsBloom": "0x07",
+  "difficulty": "0x5",
+  "totalDifficulty": "0x5",
+  "number": "0x5",
+  "gasLimit": "0x5",
+  "gasUsed": "0x5",
+  "timestamp": "0x5",
+  "extraData": "0x07",
+  "mixHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "nonce": "0x0707070707070707",
+  "baseFeePerGas": "0x0",
+  "size": "0x5",
+  "transactions": [
+    {}
+  ],
+  "uncles": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ]
+}
+```
+
+### EthGetBlockByNumber
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "string value",
+  true
+]
+```
+
+Response:
+```json
+{
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "parentHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "sha3Uncles": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "miner": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "stateRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "transactionsRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "receiptsRoot": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "logsBloom": "0x07",
+  "difficulty": "0x5",
+  "totalDifficulty": "0x5",
+  "number": "0x5",
+  "gasLimit": "0x5",
+  "gasUsed": "0x5",
+  "timestamp": "0x5",
+  "extraData": "0x07",
+  "mixHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "nonce": "0x0707070707070707",
+  "baseFeePerGas": "0x0",
+  "size": "0x5",
+  "transactions": [
+    {}
+  ],
+  "uncles": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ]
+}
+```
+
+### EthGetBlockTransactionCountByHash
+EthGetBlockTransactionCountByHash returns the number of messages in the TipSet
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response: `"0x5"`
+
+### EthGetBlockTransactionCountByNumber
+EthGetBlockTransactionCountByNumber returns the number of messages in the TipSet
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5"
+]
+```
+
+Response: `"0x5"`
+
+### EthGetCode
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "string value"
+]
+```
+
+Response: `"0x07"`
+
+### EthGetFilterChanges
+Polling method for a filter, returns event logs which occurred since last poll.
+(requires write perm since timestamp of last filter execution will be written)
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response:
+```json
+[
+  {}
+]
+```
+
+### EthGetFilterLogs
+Returns event logs matching filter with given id.
+(requires write perm since timestamp of last filter execution will be written)
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response:
+```json
+[
+  {}
+]
+```
+
+### EthGetLogs
+Returns event logs matching given filter spec.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "fromBlock": "2301220",
+    "address": [
+      "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031"
+    ],
+    "topics": null
+  }
+]
+```
+
+Response:
+```json
+[
+  {}
+]
+```
+
+### EthGetMessageCidByTransactionHash
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
+
+### EthGetStorageAt
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "0x07",
+  "string value"
+]
+```
+
+Response: `"0x07"`
+
+### EthGetTransactionByBlockHashAndIndex
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "0x5"
+]
+```
+
+Response:
+```json
+{
+  "chainId": "0x5",
+  "nonce": "0x5",
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "transactionIndex": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "value": "0x0",
+  "type": "0x5",
+  "input": "0x07",
+  "gas": "0x5",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "accessList": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ],
+  "v": "0x0",
+  "r": "0x0",
+  "s": "0x0"
+}
+```
+
+### EthGetTransactionByBlockNumberAndIndex
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5",
+  "0x5"
+]
+```
+
+Response:
+```json
+{
+  "chainId": "0x5",
+  "nonce": "0x5",
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "transactionIndex": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "value": "0x0",
+  "type": "0x5",
+  "input": "0x07",
+  "gas": "0x5",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "accessList": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ],
+  "v": "0x0",
+  "r": "0x0",
+  "s": "0x0"
+}
+```
+
+### EthGetTransactionByHash
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response:
+```json
+{
+  "chainId": "0x5",
+  "nonce": "0x5",
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "transactionIndex": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "value": "0x0",
+  "type": "0x5",
+  "input": "0x07",
+  "gas": "0x5",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "accessList": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ],
+  "v": "0x0",
+  "r": "0x0",
+  "s": "0x0"
+}
+```
+
+### EthGetTransactionByHashLimited
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  10101
+]
+```
+
+Response:
+```json
+{
+  "chainId": "0x5",
+  "nonce": "0x5",
+  "hash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "transactionIndex": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "value": "0x0",
+  "type": "0x5",
+  "input": "0x07",
+  "gas": "0x5",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "accessList": [
+    "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+  ],
+  "v": "0x0",
+  "r": "0x0",
+  "s": "0x0"
+}
+```
+
+### EthGetTransactionCount
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "string value"
+]
+```
+
+Response: `"0x5"`
+
+### EthGetTransactionHashByCid
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
+]
+```
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthGetTransactionReceipt
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response:
+```json
+{
+  "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "transactionIndex": "0x5",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "root": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "status": "0x5",
+  "contractAddress": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "cumulativeGasUsed": "0x5",
+  "gasUsed": "0x5",
+  "effectiveGasPrice": "0x0",
+  "logsBloom": "0x07",
+  "logs": [
+    {
+      "address": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+      "data": "0x07",
+      "topics": [
+        "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+      ],
+      "removed": true,
+      "logIndex": "0x5",
+      "transactionIndex": "0x5",
+      "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+      "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+      "blockNumber": "0x5"
+    }
+  ],
+  "type": "0x5"
+}
+```
+
+### EthGetTransactionReceiptLimited
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  10101
+]
+```
+
+Response:
+```json
+{
+  "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "transactionIndex": "0x5",
+  "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "blockNumber": "0x5",
+  "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "root": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+  "status": "0x5",
+  "contractAddress": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+  "cumulativeGasUsed": "0x5",
+  "gasUsed": "0x5",
+  "effectiveGasPrice": "0x0",
+  "logsBloom": "0x07",
+  "logs": [
+    {
+      "address": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
+      "data": "0x07",
+      "topics": [
+        "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+      ],
+      "removed": true,
+      "logIndex": "0x5",
+      "transactionIndex": "0x5",
+      "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+      "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+      "blockNumber": "0x5"
+    }
+  ],
+  "type": "0x5"
+}
+```
+
+### EthMaxPriorityFeePerGas
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0x0"`
+
+### EthNewBlockFilter
+Installs a persistent filter to notify when a new block arrives.
+
+
+Perms: write
+
+Inputs: `null`
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthNewFilter
+Installs a persistent filter based on given filter spec.
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  {
+    "fromBlock": "2301220",
+    "address": [
+      "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031"
+    ],
+    "topics": null
+  }
+]
+```
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthNewPendingTransactionFilter
+Installs a persistent filter to notify when new messages arrive in the message pool.
+
+
+Perms: write
+
+Inputs: `null`
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthProtocolVersion
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0x5"`
+
+### EthSendRawTransaction
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "0x07"
+]
+```
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthSubscribe
+Subscribe to different event types using websockets
+eventTypes is one or more of:
+ - newHeads: notify when new blocks arrive.
+ - pendingTransactions: notify when new messages arrive in the message pool.
+ - logs: notify new event logs that match a criteria
+params contains additional parameters used with the log event type
+The client will receive a stream of EthSubscriptionResponse values until EthUnsubscribe is called.
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  "Bw=="
+]
+```
+
+Response: `"0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"`
+
+### EthUninstallFilter
+Uninstalls a filter with given id.
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response: `true`
+
+### EthUnsubscribe
+Unsubscribe from a websocket subscription
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response: `true`
+
+## Filecoin
+
+
+### FilecoinAddressToEthAddress
+FilecoinAddressToEthAddress converts an f410 or f0 Filecoin Address to an EthAddress
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234"
+]
+```
+
+Response: `"0x5cbeecf99d3fdb3f25e309cc264f240bb0664031"`
 
 ## Gas
 
@@ -2619,7 +3623,9 @@ Response:
     {
       "SealProof": 8,
       "SectorNumber": 9,
-      "SectorKey": null,
+      "SectorKey": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "SealedCID": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       }
@@ -2965,7 +3971,7 @@ Response:
   ],
   "SizeLimitHigh": 123,
   "SizeLimitLow": 123,
-  "ReplaceByFeeRatio": 12.3,
+  "ReplaceByFeeRatio": 1.23,
   "PruneCooldown": 60000000000,
   "GasLimitOverestimation": 12.3
 }
@@ -3253,7 +4259,7 @@ Inputs:
     ],
     "SizeLimitHigh": 123,
     "SizeLimitLow": 123,
-    "ReplaceByFeeRatio": 12.3,
+    "ReplaceByFeeRatio": 1.23,
     "PruneCooldown": 60000000000,
     "GasLimitOverestimation": 12.3
   }
@@ -4238,6 +5244,15 @@ Response:
 }
 ```
 
+### NetListening
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `true`
+
 ### NetPeerInfo
 
 
@@ -4471,6 +5486,15 @@ Response:
 }
 ```
 
+### NetVersion
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"string value"`
+
 ## Node
 These methods are general node management and status commands
 
@@ -4545,7 +5569,9 @@ Response:
   "PendingAmt": "0",
   "NonReservedAmt": "0",
   "PendingAvailableAmt": "0",
-  "PendingWaitSentinel": null,
+  "PendingWaitSentinel": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "QueuedAmt": "0",
   "VoucherReedeemedAmt": "0"
 }
@@ -4574,7 +5600,9 @@ Response:
   "PendingAmt": "0",
   "NonReservedAmt": "0",
   "PendingAvailableAmt": "0",
-  "PendingWaitSentinel": null,
+  "PendingWaitSentinel": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "QueuedAmt": "0",
   "VoucherReedeemedAmt": "0"
 }
@@ -5047,6 +6075,45 @@ Response:
 }
 ```
 
+## Raft
+
+
+### RaftLeader
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf"`
+
+### RaftState
+
+
+Perms: read
+
+Inputs: `null`
+
+Response:
+```json
+{
+  "NonceMap": {},
+  "MsgUuids": {}
+}
+```
+
+## Start
+
+
+### StartTime
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0001-01-01T00:00:00Z"`
+
 ## State
 The State methods are used to query, inspect, and interact with chain state.
 Most methods take a TipSetKey as a parameter. The state looked up is the parent state of the tipset.
@@ -5085,7 +6152,7 @@ Perms: read
 Inputs:
 ```json
 [
-  16
+  18
 ]
 ```
 
@@ -5100,7 +6167,7 @@ Perms: read
 Inputs:
 ```json
 [
-  16
+  18
 ]
 ```
 
@@ -5205,7 +6272,10 @@ Response:
   "MsgRct": {
     "ExitCode": 0,
     "Return": "Ynl0ZSBhcnJheQ==",
-    "GasUsed": 9
+    "GasUsed": 9,
+    "EventsRoot": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   "GasCost": {
     "Message": {
@@ -5221,89 +6291,49 @@ Response:
   },
   "ExecutionTrace": {
     "Msg": {
-      "Version": 42,
-      "To": "f01234",
       "From": "f01234",
-      "Nonce": 42,
+      "To": "f01234",
       "Value": "0",
-      "GasLimit": 9,
-      "GasFeeCap": "0",
-      "GasPremium": "0",
       "Method": 1,
       "Params": "Ynl0ZSBhcnJheQ==",
-      "CID": {
-        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-      }
+      "ParamsCodec": 42
     },
     "MsgRct": {
       "ExitCode": 0,
       "Return": "Ynl0ZSBhcnJheQ==",
-      "GasUsed": 9
+      "ReturnCodec": 42
     },
-    "Error": "string value",
-    "Duration": 60000000000,
     "GasCharges": [
       {
         "Name": "string value",
-        "loc": [
-          {
-            "File": "string value",
-            "Line": 123,
-            "Function": "string value"
-          }
-        ],
         "tg": 9,
         "cg": 9,
         "sg": 9,
-        "vtg": 9,
-        "vcg": 9,
-        "vsg": 9,
-        "tt": 60000000000,
-        "ex": {}
+        "tt": 60000000000
       }
     ],
     "Subcalls": [
       {
         "Msg": {
-          "Version": 42,
-          "To": "f01234",
           "From": "f01234",
-          "Nonce": 42,
+          "To": "f01234",
           "Value": "0",
-          "GasLimit": 9,
-          "GasFeeCap": "0",
-          "GasPremium": "0",
           "Method": 1,
           "Params": "Ynl0ZSBhcnJheQ==",
-          "CID": {
-            "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-          }
+          "ParamsCodec": 42
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
-          "GasUsed": 9
+          "ReturnCodec": 42
         },
-        "Error": "string value",
-        "Duration": 60000000000,
         "GasCharges": [
           {
             "Name": "string value",
-            "loc": [
-              {
-                "File": "string value",
-                "Line": 123,
-                "Function": "string value"
-              }
-            ],
             "tg": 9,
             "cg": 9,
             "sg": 9,
-            "vtg": 9,
-            "vcg": 9,
-            "vsg": 9,
-            "tt": 60000000000,
-            "ex": {}
+            "tt": 60000000000
           }
         ],
         "Subcalls": null
@@ -5345,7 +6375,8 @@ Response:
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
     "Nonce": 42,
-    "Balance": "0"
+    "Balance": "0",
+    "Address": "\u003cempty\u003e"
   }
 }
 ```
@@ -5471,7 +6502,10 @@ Response:
       "MsgRct": {
         "ExitCode": 0,
         "Return": "Ynl0ZSBhcnJheQ==",
-        "GasUsed": 9
+        "GasUsed": 9,
+        "EventsRoot": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        }
       },
       "GasCost": {
         "Message": {
@@ -5487,89 +6521,49 @@ Response:
       },
       "ExecutionTrace": {
         "Msg": {
-          "Version": 42,
-          "To": "f01234",
           "From": "f01234",
-          "Nonce": 42,
+          "To": "f01234",
           "Value": "0",
-          "GasLimit": 9,
-          "GasFeeCap": "0",
-          "GasPremium": "0",
           "Method": 1,
           "Params": "Ynl0ZSBhcnJheQ==",
-          "CID": {
-            "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-          }
+          "ParamsCodec": 42
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
-          "GasUsed": 9
+          "ReturnCodec": 42
         },
-        "Error": "string value",
-        "Duration": 60000000000,
         "GasCharges": [
           {
             "Name": "string value",
-            "loc": [
-              {
-                "File": "string value",
-                "Line": 123,
-                "Function": "string value"
-              }
-            ],
             "tg": 9,
             "cg": 9,
             "sg": 9,
-            "vtg": 9,
-            "vcg": 9,
-            "vsg": 9,
-            "tt": 60000000000,
-            "ex": {}
+            "tt": 60000000000
           }
         ],
         "Subcalls": [
           {
             "Msg": {
-              "Version": 42,
-              "To": "f01234",
               "From": "f01234",
-              "Nonce": 42,
+              "To": "f01234",
               "Value": "0",
-              "GasLimit": 9,
-              "GasFeeCap": "0",
-              "GasPremium": "0",
               "Method": 1,
               "Params": "Ynl0ZSBhcnJheQ==",
-              "CID": {
-                "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-              }
+              "ParamsCodec": 42
             },
             "MsgRct": {
               "ExitCode": 0,
               "Return": "Ynl0ZSBhcnJheQ==",
-              "GasUsed": 9
+              "ReturnCodec": 42
             },
-            "Error": "string value",
-            "Duration": 60000000000,
             "GasCharges": [
               {
                 "Name": "string value",
-                "loc": [
-                  {
-                    "File": "string value",
-                    "Line": 123,
-                    "Function": "string value"
-                  }
-                ],
                 "tg": 9,
                 "cg": 9,
                 "sg": 9,
-                "vtg": 9,
-                "vcg": 9,
-                "vsg": 9,
-                "tt": 60000000000,
-                "ex": {}
+                "tt": 60000000000
               }
             ],
             "Subcalls": null
@@ -5721,9 +6715,107 @@ Response:
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
   "Nonce": 42,
-  "Balance": "0"
+  "Balance": "0",
+  "Address": "\u003cempty\u003e"
 }
 ```
+
+### StateGetAllocation
+StateGetAllocation returns the allocation for a given address and allocation ID.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  0,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "Client": 1000,
+  "Provider": 1000,
+  "Data": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "Size": 1032,
+  "TermMin": 10101,
+  "TermMax": 10101,
+  "Expiration": 10101
+}
+```
+
+### StateGetAllocationForPendingDeal
+StateGetAllocationForPendingDeal returns the allocation for a given deal ID of a pending deal. Returns nil if
+pending allocation is not found.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  5432,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "Client": 1000,
+  "Provider": 1000,
+  "Data": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "Size": 1032,
+  "TermMin": 10101,
+  "TermMax": 10101,
+  "Expiration": 10101
+}
+```
+
+### StateGetAllocations
+StateGetAllocations returns the all the allocations for a given client.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `{}`
 
 ### StateGetBeaconEntry
 StateGetBeaconEntry returns the beacon entry for the given filecoin epoch. If
@@ -5747,6 +6839,67 @@ Response:
   "Data": "Ynl0ZSBhcnJheQ=="
 }
 ```
+
+### StateGetClaim
+StateGetClaim returns the claim for a given address and claim ID.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  0,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "Provider": 1000,
+  "Client": 1000,
+  "Data": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "Size": 1032,
+  "TermMin": 10101,
+  "TermMax": 10101,
+  "TermStart": 10101,
+  "Sector": 9
+}
+```
+
+### StateGetClaims
+StateGetClaims returns the all the claims for a given provider.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `{}`
 
 ### StateGetNetworkParams
 StateGetNetworkParams return current network params
@@ -5786,7 +6939,10 @@ Response:
     "UpgradeTurboHeight": 10101,
     "UpgradeHyperdriveHeight": 10101,
     "UpgradeChocolateHeight": 10101,
-    "UpgradeOhSnapHeight": 10101
+    "UpgradeOhSnapHeight": 10101,
+    "UpgradeSkyrHeight": 10101,
+    "UpgradeSharkHeight": 10101,
+    "UpgradeHyggeHeight": 10101
   }
 }
 ```
@@ -6046,7 +7202,8 @@ Response:
     "State": {
       "SectorStartEpoch": 10101,
       "LastUpdatedEpoch": 10101,
-      "SlashEpoch": 10101
+      "SlashEpoch": 10101,
+      "VerifiedClaim": 0
     }
   }
 }
@@ -6124,7 +7281,8 @@ Response:
   "State": {
     "SectorStartEpoch": 10101,
     "LastUpdatedEpoch": 10101,
-    "SlashEpoch": 10101
+    "SlashEpoch": 10101,
+    "VerifiedClaim": 0
   }
 }
 ```
@@ -6171,7 +7329,10 @@ Response:
     "ExpectedStoragePledge": "0",
     "ReplacedSectorAge": 10101,
     "ReplacedDayReward": "0",
-    "SectorKeyCID": null
+    "SectorKeyCID": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "SimpleQAPower": true
   }
 ]
 ```
@@ -6328,7 +7489,20 @@ Response:
   "WindowPoStProofType": 8,
   "SectorSize": 34359738368,
   "WindowPoStPartitionSectors": 42,
-  "ConsensusFaultElapsed": 10101
+  "ConsensusFaultElapsed": 10101,
+  "Beneficiary": "f01234",
+  "BeneficiaryTerm": {
+    "Quota": "0",
+    "UsedQuota": "0",
+    "Expiration": 10101
+  },
+  "PendingBeneficiaryTerm": {
+    "NewBeneficiary": "f01234",
+    "NewQuota": "0",
+    "NewExpiration": 10101,
+    "ApprovedByBeneficiary": true,
+    "ApprovedByNominee": true
+  }
 }
 ```
 
@@ -6353,10 +7527,9 @@ Inputs:
       5432
     ],
     "Expiration": 10101,
-    "ReplaceCapacity": true,
-    "ReplaceSectorDeadline": 42,
-    "ReplaceSectorPartition": 42,
-    "ReplaceSectorNumber": 9
+    "UnsealedCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   [
     {
@@ -6478,10 +7651,9 @@ Inputs:
       5432
     ],
     "Expiration": 10101,
-    "ReplaceCapacity": true,
-    "ReplaceSectorDeadline": 42,
-    "ReplaceSectorPartition": 42,
-    "ReplaceSectorNumber": 9
+    "UnsealedCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   [
     {
@@ -6664,7 +7836,10 @@ Response:
     "ExpectedStoragePledge": "0",
     "ReplacedSectorAge": 10101,
     "ReplacedDayReward": "0",
-    "SectorKeyCID": null
+    "SectorKeyCID": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "SimpleQAPower": true
   }
 ]
 ```
@@ -6699,7 +7874,7 @@ Inputs:
 ]
 ```
 
-Response: `16`
+Response: `18`
 
 ### StateReadState
 StateReadState returns the indicated actor's state.
@@ -6796,7 +7971,10 @@ Response:
   "MsgRct": {
     "ExitCode": 0,
     "Return": "Ynl0ZSBhcnJheQ==",
-    "GasUsed": 9
+    "GasUsed": 9,
+    "EventsRoot": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   "GasCost": {
     "Message": {
@@ -6812,89 +7990,49 @@ Response:
   },
   "ExecutionTrace": {
     "Msg": {
-      "Version": 42,
-      "To": "f01234",
       "From": "f01234",
-      "Nonce": 42,
+      "To": "f01234",
       "Value": "0",
-      "GasLimit": 9,
-      "GasFeeCap": "0",
-      "GasPremium": "0",
       "Method": 1,
       "Params": "Ynl0ZSBhcnJheQ==",
-      "CID": {
-        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-      }
+      "ParamsCodec": 42
     },
     "MsgRct": {
       "ExitCode": 0,
       "Return": "Ynl0ZSBhcnJheQ==",
-      "GasUsed": 9
+      "ReturnCodec": 42
     },
-    "Error": "string value",
-    "Duration": 60000000000,
     "GasCharges": [
       {
         "Name": "string value",
-        "loc": [
-          {
-            "File": "string value",
-            "Line": 123,
-            "Function": "string value"
-          }
-        ],
         "tg": 9,
         "cg": 9,
         "sg": 9,
-        "vtg": 9,
-        "vcg": 9,
-        "vsg": 9,
-        "tt": 60000000000,
-        "ex": {}
+        "tt": 60000000000
       }
     ],
     "Subcalls": [
       {
         "Msg": {
-          "Version": 42,
-          "To": "f01234",
           "From": "f01234",
-          "Nonce": 42,
+          "To": "f01234",
           "Value": "0",
-          "GasLimit": 9,
-          "GasFeeCap": "0",
-          "GasPremium": "0",
           "Method": 1,
           "Params": "Ynl0ZSBhcnJheQ==",
-          "CID": {
-            "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
-          }
+          "ParamsCodec": 42
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
-          "GasUsed": 9
+          "ReturnCodec": 42
         },
-        "Error": "string value",
-        "Duration": 60000000000,
         "GasCharges": [
           {
             "Name": "string value",
-            "loc": [
-              {
-                "File": "string value",
-                "Line": 123,
-                "Function": "string value"
-              }
-            ],
             "tg": 9,
             "cg": 9,
             "sg": 9,
-            "vtg": 9,
-            "vcg": 9,
-            "vsg": 9,
-            "tt": 60000000000,
-            "ex": {}
+            "tt": 60000000000
           }
         ],
         "Subcalls": null
@@ -6955,7 +8093,10 @@ Response:
   "Receipt": {
     "ExitCode": 0,
     "Return": "Ynl0ZSBhcnJheQ==",
-    "GasUsed": 9
+    "GasUsed": 9,
+    "EventsRoot": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   "ReturnDec": {},
   "TipSet": [
@@ -7044,7 +8185,10 @@ Response:
   "ExpectedStoragePledge": "0",
   "ReplacedSectorAge": 10101,
   "ReplacedDayReward": "0",
-  "SectorKeyCID": null
+  "SectorKeyCID": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "SimpleQAPower": true
 }
 ```
 
@@ -7119,15 +8263,12 @@ Response:
       5432
     ],
     "Expiration": 10101,
-    "ReplaceCapacity": true,
-    "ReplaceSectorDeadline": 42,
-    "ReplaceSectorPartition": 42,
-    "ReplaceSectorNumber": 9
+    "UnsealedCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   "PreCommitDeposit": "0",
-  "PreCommitEpoch": 10101,
-  "DealWeight": "0",
-  "VerifiedDealWeight": "0"
+  "PreCommitEpoch": 10101
 }
 ```
 
@@ -7280,7 +8421,10 @@ Response:
   "Receipt": {
     "ExitCode": 0,
     "Return": "Ynl0ZSBhcnJheQ==",
-    "GasUsed": 9
+    "GasUsed": 9,
+    "EventsRoot": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
   },
   "ReturnDec": {},
   "TipSet": [
@@ -7837,4 +8981,17 @@ Inputs:
 ```
 
 Response: `true`
+
+## Web3
+
+
+### Web3ClientVersion
+Returns the client version
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"string value"`
 

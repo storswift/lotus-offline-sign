@@ -1,11 +1,11 @@
-//stm: #unit
+// stm: #unit
 package blockstore
 
 import (
 	"context"
 	"testing"
 
-	blocks "github.com/ipfs/go-block-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,6 +13,7 @@ var (
 	b0 = blocks.NewBlock([]byte("abc"))
 	b1 = blocks.NewBlock([]byte("foo"))
 	b2 = blocks.NewBlock([]byte("bar"))
+	b3 = blocks.NewBlock([]byte("baz"))
 )
 
 func TestUnionBlockstore_Get(t *testing.T) {

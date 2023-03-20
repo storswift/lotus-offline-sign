@@ -23,6 +23,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/chain/wallet/key"
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
+	_ "github.com/filecoin-project/lotus/lib/sigs/delegated"
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
@@ -149,7 +150,7 @@ var keyinfoImportCmd = &cli.Command{
 		flagRepo := cctx.String("repo")
 
 		var input io.Reader
-		if cctx.Args().Len() == 0 {
+		if cctx.NArg() == 0 {
 			input = os.Stdin
 		} else {
 			var err error
@@ -261,7 +262,7 @@ var keyinfoInfoCmd = &cli.Command{
 		format := cctx.String("format")
 
 		var input io.Reader
-		if cctx.Args().Len() == 0 {
+		if cctx.NArg() == 0 {
 			input = os.Stdin
 		} else {
 			var err error

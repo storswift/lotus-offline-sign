@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -33,12 +33,12 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/journal"
-	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
@@ -47,10 +47,8 @@ var log = logging.Logger("messagepool")
 
 var futureDebug = false
 
-var rbfNumBig = types.NewInt(uint64((ReplaceByFeeRatioDefault - 1) * RbfDenom))
-var rbfDenomBig = types.NewInt(RbfDenom)
-
-const RbfDenom = 256
+var rbfNumBig = types.NewInt(uint64(ReplaceByFeePercentageMinimum))
+var rbfDenomBig = types.NewInt(100)
 
 var RepublishInterval = time.Duration(10*build.BlockDelaySecs+build.PropagationDelaySecs) * time.Second
 
@@ -82,6 +80,7 @@ var (
 	ErrRBFTooLowPremium       = errors.New("replace by fee has too low GasPremium")
 	ErrTooManyPendingMessages = errors.New("too many pending messages for actor")
 	ErrNonceGap               = errors.New("unfulfilled nonce gap")
+	ErrExistingNonce          = errors.New("message with nonce already exists")
 )
 
 const (
@@ -112,7 +111,7 @@ type MessagePoolEvtMessage struct {
 
 func init() {
 	// if the republish interval is too short compared to the pubsub timecache, adjust it
-	minInterval := pubsub.TimeCacheDuration + time.Duration(build.PropagationDelaySecs)
+	minInterval := pubsub.TimeCacheDuration + time.Duration(build.PropagationDelaySecs)*time.Second
 	if RepublishInterval < minInterval {
 		RepublishInterval = minInterval
 	}
@@ -160,7 +159,7 @@ type MessagePool struct {
 	// pruneCooldown is a channel used to allow a cooldown time between prunes
 	pruneCooldown chan struct{}
 
-	blsSigCache *lru.TwoQueueCache
+	blsSigCache *lru.TwoQueueCache[cid.Cid, crypto.Signature]
 
 	changes *lps.PubSub
 
@@ -168,9 +167,9 @@ type MessagePool struct {
 
 	netName dtypes.NetworkName
 
-	sigValCache *lru.TwoQueueCache
+	sigValCache *lru.TwoQueueCache[string, struct{}]
 
-	nonceCache *lru.Cache
+	nonceCache *lru.Cache[nonceCacheKey, uint64]
 
 	evtTypes [3]journal.EventType
 	journal  journal.Journal
@@ -196,7 +195,13 @@ func newMsgSet(nonce uint64) *msgSet {
 }
 
 func ComputeMinRBF(curPrem abi.TokenAmount) abi.TokenAmount {
-	minPrice := types.BigAdd(curPrem, types.BigDiv(types.BigMul(curPrem, rbfNumBig), rbfDenomBig))
+	minPrice := types.BigDiv(types.BigMul(curPrem, rbfNumBig), rbfDenomBig)
+	return types.BigAdd(minPrice, types.NewInt(1))
+}
+
+func ComputeRBF(curPrem abi.TokenAmount, replaceByFeeRatio types.Percent) abi.TokenAmount {
+	rbfNumBig := types.NewInt(uint64(replaceByFeeRatio))
+	minPrice := types.BigDiv(types.BigMul(curPrem, rbfNumBig), rbfDenomBig)
 	return types.BigAdd(minPrice, types.NewInt(1))
 }
 
@@ -218,6 +223,7 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSpec *api.M
 	totalFee := types.BigMul(msg.GasFeeCap, gl)
 
 	if totalFee.LessThanEqual(maxFee) {
+		msg.GasPremium = big.Min(msg.GasFeeCap, msg.GasPremium) // cap premium at FeeCap
 		return
 	}
 
@@ -276,11 +282,11 @@ func (ms *msgSet) add(m *types.SignedMessage, mp *MessagePool, strict, untrusted
 			}
 		} else {
 			return false, xerrors.Errorf("message from %s with nonce %d already in mpool: %w",
-				m.Message.From, m.Message.Nonce, ErrSoftValidationFailure)
+				m.Message.From, m.Message.Nonce, ErrExistingNonce)
 		}
 
 		ms.requiredFunds.Sub(ms.requiredFunds, exms.Message.RequiredFunds().Int)
-		//ms.requiredFunds.Sub(ms.requiredFunds, exms.Message.Value.Int)
+		// ms.requiredFunds.Sub(ms.requiredFunds, exms.Message.Value.Int)
 	}
 
 	if !has && strict && len(ms.msgs) >= maxActorPendingMessages {
@@ -296,7 +302,7 @@ func (ms *msgSet) add(m *types.SignedMessage, mp *MessagePool, strict, untrusted
 	ms.nextNonce = nextNonce
 	ms.msgs[m.Message.Nonce] = m
 	ms.requiredFunds.Add(ms.requiredFunds, m.Message.RequiredFunds().Int)
-	//ms.requiredFunds.Add(ms.requiredFunds, m.Message.Value.Int)
+	// ms.requiredFunds.Add(ms.requiredFunds, m.Message.Value.Int)
 
 	return !has, nil
 }
@@ -316,7 +322,7 @@ func (ms *msgSet) rm(nonce uint64, applied bool) {
 	}
 
 	ms.requiredFunds.Sub(ms.requiredFunds, m.Message.RequiredFunds().Int)
-	//ms.requiredFunds.Sub(ms.requiredFunds, m.Message.Value.Int)
+	// ms.requiredFunds.Sub(ms.requiredFunds, m.Message.Value.Int)
 	delete(ms.msgs, nonce)
 
 	// adjust next nonce
@@ -342,7 +348,7 @@ func (ms *msgSet) getRequiredFunds(nonce uint64) types.BigInt {
 	m, has := ms.msgs[nonce]
 	if has {
 		requiredFunds.Sub(requiredFunds, m.Message.RequiredFunds().Int)
-		//requiredFunds.Sub(requiredFunds, m.Message.Value.Int)
+		// requiredFunds.Sub(requiredFunds, m.Message.Value.Int)
 	}
 
 	return types.BigInt{Int: requiredFunds}
@@ -363,9 +369,9 @@ func (ms *msgSet) toSlice() []*types.SignedMessage {
 }
 
 func New(ctx context.Context, api Provider, ds dtypes.MetadataDS, us stmgr.UpgradeSchedule, netName dtypes.NetworkName, j journal.Journal) (*MessagePool, error) {
-	cache, _ := lru.New2Q(build.BlsSignatureCacheSize)
-	verifcache, _ := lru.New2Q(build.VerifSigCacheSize)
-	noncecache, _ := lru.New(256)
+	cache, _ := lru.New2Q[cid.Cid, crypto.Signature](build.BlsSignatureCacheSize)
+	verifcache, _ := lru.New2Q[string, struct{}](build.VerifSigCacheSize)
+	noncecache, _ := lru.New[nonceCacheKey, uint64](256)
 
 	cfg, err := loadConfig(ctx, ds)
 	if err != nil {
@@ -441,8 +447,12 @@ func New(ctx context.Context, api Provider, ds dtypes.MetadataDS, us stmgr.Upgra
 	return mp, nil
 }
 
-func (mp *MessagePool) ForEachPendingMessage(f func(cid.Cid) error) error {
-	mp.lk.Lock()
+func (mp *MessagePool) TryForEachPendingMessage(f func(cid.Cid) error) error {
+	// avoid deadlocks in splitstore compaction when something else needs to access the blockstore
+	// while holding the mpool lock
+	if !mp.lk.TryLock() {
+		return xerrors.Errorf("mpool TryForEachPendingMessage: could not acquire lock")
+	}
 	defer mp.lk.Unlock()
 
 	for _, mset := range mp.pending {
@@ -470,7 +480,7 @@ func (mp *MessagePool) resolveToKey(ctx context.Context, addr address.Address) (
 	}
 
 	// resolve the address
-	ka, err := mp.api.StateAccountKeyAtFinality(ctx, addr, mp.curTs)
+	ka, err := mp.api.StateDeterministicAddressAtFinality(ctx, addr, mp.curTs)
 	if err != nil {
 		return address.Undef, err
 	}
@@ -624,11 +634,11 @@ func (mp *MessagePool) addLocal(ctx context.Context, m *types.SignedMessage) err
 // sufficiently.
 // For non local messages, if the message cannot be included in the next 20 blocks it returns
 // a (soft) validation error.
-func (mp *MessagePool) verifyMsgBeforeAdd(m *types.SignedMessage, curTs *types.TipSet, local bool) (bool, error) {
+func (mp *MessagePool) verifyMsgBeforeAdd(ctx context.Context, m *types.SignedMessage, curTs *types.TipSet, local bool) (bool, error) {
 	epoch := curTs.Height() + 1
 	minGas := vm.PricelistByEpoch(epoch).OnChainMessage(m.ChainLength())
 
-	if err := m.VMMessage().ValidForBlockInclusion(minGas.Total(), build.NewestNetworkVersion); err != nil {
+	if err := m.VMMessage().ValidForBlockInclusion(minGas.Total(), mp.api.StateNetworkVersion(ctx, epoch)); err != nil {
 		return false, xerrors.Errorf("message will not be included in a block: %w", err)
 	}
 
@@ -667,11 +677,13 @@ func (mp *MessagePool) verifyMsgBeforeAdd(m *types.SignedMessage, curTs *types.T
 	return publish, nil
 }
 
-func (mp *MessagePool) Push(ctx context.Context, m *types.SignedMessage) (cid.Cid, error) {
+// Push checks the signed message for any violations, adds the message to the message pool and
+// publishes the message if the publish flag is set
+func (mp *MessagePool) Push(ctx context.Context, m *types.SignedMessage, publish bool) (cid.Cid, error) {
 	done := metrics.Timer(ctx, metrics.MpoolPushDuration)
 	defer done()
 
-	err := mp.checkMessage(m)
+	err := mp.checkMessage(ctx, m)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -683,14 +695,14 @@ func (mp *MessagePool) Push(ctx context.Context, m *types.SignedMessage) (cid.Ci
 	}()
 
 	mp.curTsLk.Lock()
-	publish, err := mp.addTs(ctx, m, mp.curTs, true, false)
+	ok, err := mp.addTs(ctx, m, mp.curTs, true, false)
 	if err != nil {
 		mp.curTsLk.Unlock()
 		return cid.Undef, err
 	}
 	mp.curTsLk.Unlock()
 
-	if publish {
+	if ok && publish {
 		msgb, err := m.Serialize()
 		if err != nil {
 			return cid.Undef, xerrors.Errorf("error serializing message: %w", err)
@@ -705,14 +717,14 @@ func (mp *MessagePool) Push(ctx context.Context, m *types.SignedMessage) (cid.Ci
 	return m.Cid(), nil
 }
 
-func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
+func (mp *MessagePool) checkMessage(ctx context.Context, m *types.SignedMessage) error {
 	// big messages are bad, anti DOS
 	if m.Size() > MaxMessageSize {
 		return xerrors.Errorf("mpool message too large (%dB): %w", m.Size(), ErrMessageTooBig)
 	}
 
 	// Perform syntactic validation, minGas=0 as we check the actual mingas before we add it
-	if err := m.Message.ValidForBlockInclusion(0, build.NewestNetworkVersion); err != nil {
+	if err := m.Message.ValidForBlockInclusion(0, mp.api.StateNetworkVersion(ctx, mp.curTs.Height())); err != nil {
 		return xerrors.Errorf("message not valid for block inclusion: %w", err)
 	}
 
@@ -740,7 +752,7 @@ func (mp *MessagePool) Add(ctx context.Context, m *types.SignedMessage) error {
 	done := metrics.Timer(ctx, metrics.MpoolAddDuration)
 	defer done()
 
-	err := mp.checkMessage(m)
+	err := mp.checkMessage(ctx, m)
 	if err != nil {
 		return err
 	}
@@ -764,11 +776,9 @@ func sigCacheKey(m *types.SignedMessage) (string, error) {
 		if len(m.Signature.Data) != ffi.SignatureBytes {
 			return "", fmt.Errorf("bls signature incorrectly sized")
 		}
-
 		hashCache := blake2b.Sum256(append(m.Cid().Bytes(), m.Signature.Data...))
-
 		return string(hashCache[:]), nil
-	case crypto.SigTypeSecp256k1:
+	case crypto.SigTypeSecp256k1, crypto.SigTypeDelegated:
 		return string(m.Cid().Bytes()), nil
 	default:
 		return "", xerrors.Errorf("unrecognized signature type: %d", m.Signature.Type)
@@ -787,8 +797,8 @@ func (mp *MessagePool) VerifyMsgSig(m *types.SignedMessage) error {
 		return nil
 	}
 
-	if err := sigs.Verify(&m.Signature, m.Message.From, m.Message.Cid().Bytes()); err != nil {
-		return err
+	if err := consensus.AuthenticateMessage(m, m.Message.From); err != nil {
+		return xerrors.Errorf("failed to validate signature: %w", err)
 	}
 
 	mp.sigValCache.Add(sck, struct{}{})
@@ -808,7 +818,7 @@ func (mp *MessagePool) checkBalance(ctx context.Context, m *types.SignedMessage,
 	}
 
 	// add Value for soft failure check
-	//requiredFunds = types.BigAdd(requiredFunds, m.Message.Value)
+	// requiredFunds = types.BigAdd(requiredFunds, m.Message.Value)
 
 	mset, ok, err := mp.getPendingMset(ctx, m.Message.From)
 	if err != nil {
@@ -845,18 +855,32 @@ func (mp *MessagePool) addTs(ctx context.Context, m *types.SignedMessage, curTs 
 	mp.lk.Lock()
 	defer mp.lk.Unlock()
 
-	publish, err := mp.verifyMsgBeforeAdd(m, curTs, local)
+	senderAct, err := mp.api.GetActorAfter(m.Message.From, curTs)
 	if err != nil {
-		return false, err
+		return false, xerrors.Errorf("failed to get sender actor: %w", err)
+	}
+
+	// This message can only be included in the _next_ epoch and beyond, hence the +1.
+	epoch := curTs.Height() + 1
+	nv := mp.api.StateNetworkVersion(ctx, epoch)
+
+	// TODO: I'm not thrilled about depending on filcns here, but I prefer this to duplicating logic
+	if !consensus.IsValidForSending(nv, senderAct) {
+		return false, xerrors.Errorf("sender actor %s is not a valid top-level sender", m.Message.From)
+	}
+
+	publish, err := mp.verifyMsgBeforeAdd(ctx, m, curTs, local)
+	if err != nil {
+		return false, xerrors.Errorf("verify msg failed: %w", err)
 	}
 
 	if err := mp.checkBalance(ctx, m, curTs); err != nil {
-		return false, err
+		return false, xerrors.Errorf("failed to check balance: %w", err)
 	}
 
 	err = mp.addLocked(ctx, m, !local, untrusted)
 	if err != nil {
-		return false, err
+		return false, xerrors.Errorf("failed to add locked: %w", err)
 	}
 
 	if local {
@@ -870,7 +894,7 @@ func (mp *MessagePool) addTs(ctx context.Context, m *types.SignedMessage, curTs 
 }
 
 func (mp *MessagePool) addLoaded(ctx context.Context, m *types.SignedMessage) error {
-	err := mp.checkMessage(m)
+	err := mp.checkMessage(ctx, m)
 	if err != nil {
 		return err
 	}
@@ -890,7 +914,7 @@ func (mp *MessagePool) addLoaded(ctx context.Context, m *types.SignedMessage) er
 		return xerrors.Errorf("minimum expected nonce is %d: %w", snonce, ErrNonceTooLow)
 	}
 
-	_, err = mp.verifyMsgBeforeAdd(m, curTs, true)
+	_, err = mp.verifyMsgBeforeAdd(ctx, m, curTs, true)
 	if err != nil {
 		return err
 	}
@@ -1029,7 +1053,7 @@ func (mp *MessagePool) getStateNonce(ctx context.Context, addr address.Address, 
 
 	n, ok := mp.nonceCache.Get(nk)
 	if ok {
-		return n.(uint64), nil
+		return n, nil
 	}
 
 	act, err := mp.api.GetActorAfter(addr, ts)
@@ -1056,11 +1080,11 @@ func (mp *MessagePool) getStateBalance(ctx context.Context, addr address.Address
 
 // this method is provided for the gateway to push messages.
 // differences from Push:
-//  - strict checks are enabled
-//  - extra strict add checks are used when adding the messages to the msgSet
-//    that means: no nonce gaps, at most 10 pending messages for the actor
+//   - strict checks are enabled
+//   - extra strict add checks are used when adding the messages to the msgSet
+//     that means: no nonce gaps, at most 10 pending messages for the actor
 func (mp *MessagePool) PushUntrusted(ctx context.Context, m *types.SignedMessage) (cid.Cid, error) {
-	err := mp.checkMessage(m)
+	err := mp.checkMessage(ctx, m)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -1449,13 +1473,8 @@ func (mp *MessagePool) MessagesForBlocks(ctx context.Context, blks []*types.Bloc
 }
 
 func (mp *MessagePool) RecoverSig(msg *types.Message) *types.SignedMessage {
-	val, ok := mp.blsSigCache.Get(msg.Cid())
+	sig, ok := mp.blsSigCache.Get(msg.Cid())
 	if !ok {
-		return nil
-	}
-	sig, ok := val.(crypto.Signature)
-	if !ok {
-		log.Errorf("value in signature cache was not a signature (got %T)", val)
 		return nil
 	}
 
@@ -1582,4 +1601,9 @@ func getBaseFeeLowerBound(baseFee, factor types.BigInt) types.BigInt {
 	}
 
 	return baseFeeLowerBound
+}
+
+type MpoolNonceAPI interface {
+	GetNonce(context.Context, address.Address, types.TipSetKey) (uint64, error)
+	GetActor(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)
 }

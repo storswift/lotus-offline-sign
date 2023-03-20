@@ -45,19 +45,8 @@ func workersCmd(sealing bool) *cli.Command {
 	return &cli.Command{
 		Name:  "workers",
 		Usage: "list workers",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:        "color",
-				Usage:       "use color in display output",
-				DefaultText: "depends on output being a TTY",
-			},
-		},
 		Action: func(cctx *cli.Context) error {
-			if cctx.IsSet("color") {
-				color.NoColor = !cctx.Bool("color")
-			}
-
-			nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+			minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 			if err != nil {
 				return err
 			}
@@ -65,7 +54,7 @@ func workersCmd(sealing bool) *cli.Command {
 
 			ctx := lcli.ReqContext(cctx)
 
-			stats, err := nodeApi.WorkerStats(ctx)
+			stats, err := minerApi.WorkerStats(ctx)
 			if err != nil {
 				return err
 			}
@@ -146,7 +135,7 @@ func workersCmd(sealing bool) *cli.Command {
 				})
 				var taskStr string
 				for _, t := range tc {
-					taskStr = t[1] + " "
+					taskStr += t[1] + " "
 				}
 				if taskStr != "" {
 					fmt.Printf("\tTASK: %s\n", taskStr)
@@ -219,21 +208,12 @@ var sealingJobsCmd = &cli.Command{
 	Usage: "list running jobs",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:        "color",
-			Usage:       "use color in display output",
-			DefaultText: "depends on output being a TTY",
-		},
-		&cli.BoolFlag{
 			Name:  "show-ret-done",
 			Usage: "show returned but not consumed calls",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.IsSet("color") {
-			color.NoColor = !cctx.Bool("color")
-		}
-
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -241,7 +221,7 @@ var sealingJobsCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		jobs, err := nodeApi.WorkerJobs(ctx)
+		jobs, err := minerApi.WorkerJobs(ctx)
 		if err != nil {
 			return xerrors.Errorf("getting worker jobs: %w", err)
 		}
@@ -275,7 +255,7 @@ var sealingJobsCmd = &cli.Command{
 
 		workerHostnames := map[uuid.UUID]string{}
 
-		wst, err := nodeApi.WorkerStats(ctx)
+		wst, err := minerApi.WorkerStats(ctx)
 		if err != nil {
 			return xerrors.Errorf("getting worker stats: %w", err)
 		}
@@ -337,7 +317,7 @@ var sealingSchedDiagCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -345,7 +325,7 @@ var sealingSchedDiagCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		st, err := nodeApi.SealingSchedDiag(ctx, cctx.Bool("force-sched"))
+		st, err := minerApi.SealingSchedDiag(ctx, cctx.Bool("force-sched"))
 		if err != nil {
 			return err
 		}
@@ -372,11 +352,11 @@ var sealingAbortCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.Args().Len() != 1 {
-			return xerrors.Errorf("expected 1 argument")
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -385,14 +365,14 @@ var sealingAbortCmd = &cli.Command{
 		ctx := lcli.ReqContext(cctx)
 
 		if cctx.Bool("sched") {
-			err = nodeApi.SealingRemoveRequest(ctx, uuid.Must(uuid.Parse(cctx.Args().First())))
+			err = minerApi.SealingRemoveRequest(ctx, uuid.Must(uuid.Parse(cctx.Args().First())))
 			if err != nil {
 				return xerrors.Errorf("Failed to removed the request with UUID %s: %w", cctx.Args().First(), err)
 			}
 			return nil
 		}
 
-		jobs, err := nodeApi.WorkerJobs(ctx)
+		jobs, err := minerApi.WorkerJobs(ctx)
 		if err != nil {
 			return xerrors.Errorf("getting worker jobs: %w", err)
 		}
@@ -415,7 +395,7 @@ var sealingAbortCmd = &cli.Command{
 
 		fmt.Printf("aborting job %s, task %s, sector %d, running on host %s\n", job.ID.String(), job.Task.Short(), job.Sector.Number, job.Hostname)
 
-		return nodeApi.SealingAbort(ctx, job.ID)
+		return minerApi.SealingAbort(ctx, job.ID)
 	},
 }
 
@@ -430,11 +410,11 @@ var sealingDataCidCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.Args().Len() < 1 || cctx.Args().Len() > 2 {
-			return xerrors.Errorf("expected 1 or 2 arguments")
+		if cctx.NArg() < 1 || cctx.NArg() > 2 {
+			return lcli.ShowHelp(cctx, xerrors.Errorf("expected 1 or 2 arguments"))
 		}
 
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -484,7 +464,7 @@ var sealingDataCidCmd = &cli.Command{
 		}
 
 		var psize abi.PaddedPieceSize
-		if cctx.Args().Len() == 2 {
+		if cctx.NArg() == 2 {
 			rps, err := humanize.ParseBytes(cctx.Args().Get(1))
 			if err != nil {
 				return xerrors.Errorf("parsing piece size: %w", err)
@@ -500,7 +480,7 @@ var sealingDataCidCmd = &cli.Command{
 			psize = padreader.PaddedSize(sz).Padded()
 		}
 
-		pc, err := nodeApi.ComputeDataCid(ctx, psize.Unpadded(), r)
+		pc, err := minerApi.ComputeDataCid(ctx, psize.Unpadded(), r)
 		if err != nil {
 			return xerrors.Errorf("computing data CID: %w", err)
 		}

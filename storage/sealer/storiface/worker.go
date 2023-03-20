@@ -65,6 +65,20 @@ func (wr WorkerResources) ResourceSpec(spt abi.RegisteredSealProof, tt sealtasks
 	return res
 }
 
+// PrepResourceSpec is like ResourceSpec, but meant for use limiting parallel preparing
+// tasks.
+func (wr WorkerResources) PrepResourceSpec(spt abi.RegisteredSealProof, tt, prepTT sealtasks.TaskType) Resources {
+	res := wr.ResourceSpec(spt, tt)
+
+	if prepTT != tt && prepTT != sealtasks.TTNoop {
+		prepRes := wr.ResourceSpec(spt, prepTT)
+		res.MaxConcurrent = prepRes.MaxConcurrent
+	}
+
+	// otherwise, use the default resource table
+	return res
+}
+
 type WorkerStats struct {
 	Info    WorkerInfo
 	Tasks   []sealtasks.TaskType
@@ -124,8 +138,8 @@ type WorkerCalls interface {
 	SealPreCommit2(ctx context.Context, sector SectorRef, pc1o PreCommit1Out) (CallID, error)
 	SealCommit1(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids SectorCids) (CallID, error)
 	SealCommit2(ctx context.Context, sector SectorRef, c1o Commit1Out) (CallID, error)
-	FinalizeSector(ctx context.Context, sector SectorRef, keepUnsealed []Range) (CallID, error)
-	FinalizeReplicaUpdate(ctx context.Context, sector SectorRef, keepUnsealed []Range) (CallID, error)
+	FinalizeSector(ctx context.Context, sector SectorRef) (CallID, error)
+	FinalizeReplicaUpdate(ctx context.Context, sector SectorRef) (CallID, error)
 	ReleaseUnsealed(ctx context.Context, sector SectorRef, safeToFree []Range) (CallID, error)
 	ReplicaUpdate(ctx context.Context, sector SectorRef, pieces []abi.PieceInfo) (CallID, error)
 	ProveReplicaUpdate1(ctx context.Context, sector SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (CallID, error)
@@ -134,6 +148,7 @@ type WorkerCalls interface {
 	MoveStorage(ctx context.Context, sector SectorRef, types SectorFileType) (CallID, error)
 	UnsealPiece(context.Context, SectorRef, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (CallID, error)
 	Fetch(context.Context, SectorRef, SectorFileType, PathType, AcquireMode) (CallID, error)
+	DownloadSectorData(ctx context.Context, sector SectorRef, finalized bool, src map[SectorFileType]SectorLocation) (CallID, error)
 
 	// sync
 	GenerateWinningPoSt(ctx context.Context, ppt abi.RegisteredPoStProof, mid abi.ActorID, sectors []PostSectorChallenge, randomness abi.PoStRandomness) ([]proof.PoStProof, error)
@@ -215,5 +230,6 @@ type WorkerReturn interface {
 	ReturnMoveStorage(ctx context.Context, callID CallID, err *CallError) error
 	ReturnUnsealPiece(ctx context.Context, callID CallID, err *CallError) error
 	ReturnReadPiece(ctx context.Context, callID CallID, ok bool, err *CallError) error
+	ReturnDownloadSector(ctx context.Context, callID CallID, err *CallError) error
 	ReturnFetch(ctx context.Context, callID CallID, err *CallError) error
 }

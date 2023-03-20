@@ -30,6 +30,7 @@ import (
 	"github.com/filecoin-project/lotus/lib/lotuslog"
 	"github.com/filecoin-project/lotus/lib/peermgr"
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
+	_ "github.com/filecoin-project/lotus/lib/sigs/delegated"
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
 	"github.com/filecoin-project/lotus/markets/storageadapter"
 	"github.com/filecoin-project/lotus/node/config"
@@ -49,7 +50,8 @@ import (
 var log = logging.Logger("builder")
 
 // special is a type used to give keys to modules which
-//  can't really be identified by the returned type
+//
+//	can't really be identified by the returned type
 type special struct{ id int }
 
 //nolint:golint
@@ -65,14 +67,16 @@ var (
 	ConnectionManagerKey = special{9}  // Libp2p option
 	AutoNATSvcKey        = special{10} // Libp2p option
 	BandwidthReporterKey = special{11} // Libp2p option
-	ConnGaterKey         = special{12} // libp2p option
+	ConnGaterKey         = special{12} // Libp2p option
 	DAGStoreKey          = special{13} // constructor returns multiple values
 	ResourceManagerKey   = special{14} // Libp2p option
+	UserAgentKey         = special{15} // Libp2p option
 )
 
 type invoke int
 
 // Invokes are called in the order they are defined.
+//
 //nolint:golint
 const (
 	// InitJournal at position 0 initializes the journal global var as soon as
@@ -119,8 +123,11 @@ const (
 	SettlePaymentChannelsKey
 	RunPeerTaggerKey
 	SetupFallbackBlockstoresKey
+	GoRPCServer
 
 	SetApiEndpointKey
+
+	StoreEventsKey
 
 	_nInvokes // keep this last
 )
@@ -153,6 +160,7 @@ func defaults() []Option {
 		Override(new(journal.DisabledEvents), journal.EnvDisabledEvents),
 		Override(new(journal.Journal), modules.OpenFilesystemJournal),
 		Override(new(*alerting.Alerting), alerting.NewAlertingSystem),
+		Override(new(dtypes.NodeStartTime), FromVal(dtypes.NodeStartTime(time.Now()))),
 
 		Override(CheckFDLimit, modules.CheckFdLimit(build.DefaultFDLimit)),
 

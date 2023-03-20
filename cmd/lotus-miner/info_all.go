@@ -16,7 +16,7 @@ var infoAllCmd = &cli.Command{
 	Name:  "all",
 	Usage: "dump all related miner info",
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -150,11 +150,6 @@ var infoAllCmd = &cli.Command{
 			}
 		}
 
-		fmt.Println("\n#: Retrieval Deals")
-		if err := retrievalDealsListCmd.Action(cctx); err != nil {
-			fmt.Println("ERROR: ", err)
-		}
-
 		fmt.Println("\n#: Data Transfers")
 		{
 			fs := &flag.FlagSet{}
@@ -198,8 +193,17 @@ var infoAllCmd = &cli.Command{
 		}
 
 		fmt.Println("\n#: Sector List")
-		if err := sectorsListCmd.Action(cctx); err != nil {
-			fmt.Println("ERROR: ", err)
+		{
+			fs := &flag.FlagSet{}
+			for _, f := range sectorsListCmd.Flags {
+				if err := f.Apply(fs); err != nil {
+					fmt.Println("ERROR: ", err)
+				}
+			}
+
+			if err := sectorsListCmd.Action(cli.NewContext(cctx.App, fs, cctx)); err != nil {
+				fmt.Println("ERROR: ", err)
+			}
 		}
 
 		fmt.Println("\n#: Storage Sector List")
@@ -220,7 +224,7 @@ var infoAllCmd = &cli.Command{
 		// Very Very Verbose info
 		fmt.Println("\n#: Per Sector Info")
 
-		list, err := nodeApi.SectorsList(ctx)
+		list, err := minerApi.SectorsList(ctx)
 		if err != nil {
 			fmt.Println("ERROR: ", err)
 		}

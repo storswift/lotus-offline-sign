@@ -13,6 +13,8 @@
 * [Auth](#Auth)
   * [AuthNew](#AuthNew)
   * [AuthVerify](#AuthVerify)
+* [Beneficiary](#Beneficiary)
+  * [BeneficiaryWithdrawBalance](#BeneficiaryWithdrawBalance)
 * [Check](#Check)
   * [CheckProvable](#CheckProvable)
 * [Compute](#Compute)
@@ -106,9 +108,12 @@
   * [PiecesListPieces](#PiecesListPieces)
 * [Pledge](#Pledge)
   * [PledgeSector](#PledgeSector)
+* [Recover](#Recover)
+  * [RecoverFault](#RecoverFault)
 * [Return](#Return)
   * [ReturnAddPiece](#ReturnAddPiece)
   * [ReturnDataCid](#ReturnDataCid)
+  * [ReturnDownloadSector](#ReturnDownloadSector)
   * [ReturnFetch](#ReturnFetch)
   * [ReturnFinalizeReplicaUpdate](#ReturnFinalizeReplicaUpdate)
   * [ReturnFinalizeSector](#ReturnFinalizeSector)
@@ -146,6 +151,7 @@
   * [SectorNumReserveCount](#SectorNumReserveCount)
   * [SectorPreCommitFlush](#SectorPreCommitFlush)
   * [SectorPreCommitPending](#SectorPreCommitPending)
+  * [SectorReceive](#SectorReceive)
   * [SectorRemove](#SectorRemove)
   * [SectorSetExpectedSealDuration](#SectorSetExpectedSealDuration)
   * [SectorSetSealDelay](#SectorSetSealDelay)
@@ -161,6 +167,8 @@
   * [SectorsSummary](#SectorsSummary)
   * [SectorsUnsealPiece](#SectorsUnsealPiece)
   * [SectorsUpdate](#SectorsUpdate)
+* [Start](#Start)
+  * [StartTime](#StartTime)
 * [Storage](#Storage)
   * [StorageAddLocal](#StorageAddLocal)
   * [StorageAttach](#StorageAttach)
@@ -362,6 +370,31 @@ Response:
 ]
 ```
 
+## Beneficiary
+
+
+### BeneficiaryWithdrawBalance
+BeneficiaryWithdrawBalance allows the beneficiary of a miner to withdraw balance from miner actor
+Specify amount as "0" to withdraw full balance. This method returns a message CID
+and does not wait for message execution
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  "0"
+]
+```
+
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
+
 ## Check
 
 
@@ -382,8 +415,7 @@ Inputs:
       },
       "ProofType": 8
     }
-  ],
-  true
+  ]
 ]
 ```
 
@@ -432,7 +464,9 @@ Inputs:
     {
       "SealProof": 8,
       "SectorNumber": 9,
-      "SectorKey": null,
+      "SectorKey": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "SealedCID": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       }
@@ -440,7 +474,7 @@ Inputs:
   ],
   "Bw==",
   10101,
-  16
+  18
 ]
 ```
 
@@ -791,7 +825,8 @@ Response:
     "State": {
       "SectorStartEpoch": 10101,
       "LastUpdatedEpoch": 10101,
-      "SlashEpoch": 10101
+      "SlashEpoch": 10101,
+      "VerifiedClaim": 0
     }
   }
 ]
@@ -1246,8 +1281,12 @@ Response:
   "ProposalCid": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "AddFundsCid": null,
-  "PublishCid": null,
+  "AddFundsCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "PublishCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Miner": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
   "Client": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
   "State": 42,
@@ -1262,7 +1301,9 @@ Response:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "PieceCid": null,
+    "PieceCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PieceSize": 1024,
     "RawBlockSize": 42
   },
@@ -1384,7 +1425,8 @@ Response:
     "State": {
       "SectorStartEpoch": 10101,
       "LastUpdatedEpoch": 10101,
-      "SlashEpoch": 10101
+      "SlashEpoch": 10101,
+      "VerifiedClaim": 0
     }
   }
 ]
@@ -1423,8 +1465,12 @@ Response:
     "ProposalCid": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "AddFundsCid": null,
-    "PublishCid": null,
+    "AddFundsCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "PublishCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Miner": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "Client": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "State": 42,
@@ -1439,7 +1485,9 @@ Response:
       "Root": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       },
-      "PieceCid": null,
+      "PieceCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "PieceSize": 1024,
       "RawBlockSize": 42
     },
@@ -1458,6 +1506,7 @@ Response:
 ```
 
 ### MarketListRetrievalDeals
+MarketListRetrievalDeals is deprecated, returns empty list
 
 
 Perms: read
@@ -1467,46 +1516,7 @@ Inputs: `null`
 Response:
 ```json
 [
-  {
-    "PayloadCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "ID": 5,
-    "Selector": {
-      "Raw": "Ynl0ZSBhcnJheQ=="
-    },
-    "PieceCID": null,
-    "PricePerByte": "0",
-    "PaymentInterval": 42,
-    "PaymentIntervalIncrease": 42,
-    "UnsealPrice": "0",
-    "StoreID": 42,
-    "ChannelID": {
-      "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "ID": 3
-    },
-    "PieceInfo": {
-      "PieceCID": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "Deals": [
-        {
-          "DealID": 5432,
-          "SectorID": 9,
-          "Offset": 1032,
-          "Length": 1032
-        }
-      ]
-    },
-    "Status": 0,
-    "Receiver": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "TotalSent": 42,
-    "FundsReceived": "0",
-    "Message": "string value",
-    "CurrentInterval": 42,
-    "LegacyProtocol": true
-  }
+  {}
 ]
 ```
 
@@ -2265,6 +2275,36 @@ Response:
 }
 ```
 
+## Recover
+
+
+### RecoverFault
+RecoverFault can be used to declare recoveries manually. It sends messages
+to the miner actor with details of recovered sectors and returns the CID of messages. It honors the
+maxPartitionsPerRecoveryMessage from the config
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  [
+    123,
+    124
+  ]
+]
+```
+
+Response:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
+]
+```
+
 ## Return
 
 
@@ -2319,6 +2359,30 @@ Inputs:
     "PieceCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     }
+  },
+  {
+    "Code": 0,
+    "Message": "string value"
+  }
+]
+```
+
+Response: `{}`
+
+### ReturnDownloadSector
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  {
+    "Sector": {
+      "Miner": 1000,
+      "Number": 9
+    },
+    "ID": "07070707-0707-0707-0707-070707070707"
   },
   {
     "Code": 0,
@@ -2820,7 +2884,9 @@ Inputs:
   1024,
   {},
   {
-    "PublishCid": null,
+    "PublishCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "DealID": 5432,
     "DealProposal": {
       "PieceCID": {
@@ -2874,7 +2940,9 @@ Response:
     "FailedSectors": {
       "123": "can't acquire read lock"
     },
-    "Msg": null,
+    "Msg": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Error": "string value"
   }
 ]
@@ -3068,7 +3136,9 @@ Response:
       123,
       124
     ],
-    "Msg": null,
+    "Msg": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Error": "string value"
   }
 ]
@@ -3091,6 +3161,146 @@ Response:
   }
 ]
 ```
+
+### SectorReceive
+
+
+Perms: admin
+
+Inputs:
+```json
+[
+  {
+    "State": "Proving",
+    "Sector": {
+      "Miner": 1000,
+      "Number": 9
+    },
+    "Type": 8,
+    "Pieces": [
+      {
+        "Piece": {
+          "Size": 1032,
+          "PieceCID": {
+            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+          }
+        },
+        "DealInfo": {
+          "PublishCid": {
+            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+          },
+          "DealID": 5432,
+          "DealProposal": {
+            "PieceCID": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "PieceSize": 1032,
+            "VerifiedDeal": true,
+            "Client": "f01234",
+            "Provider": "f01234",
+            "Label": "",
+            "StartEpoch": 10101,
+            "EndEpoch": 10101,
+            "StoragePricePerEpoch": "0",
+            "ProviderCollateral": "0",
+            "ClientCollateral": "0"
+          },
+          "DealSchedule": {
+            "StartEpoch": 10101,
+            "EndEpoch": 10101
+          },
+          "KeepUnsealed": true
+        }
+      }
+    ],
+    "TicketValue": "Bw==",
+    "TicketEpoch": 10101,
+    "PreCommit1Out": "Bw==",
+    "CommD": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "CommR": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "PreCommitInfo": {
+      "SealProof": 8,
+      "SectorNumber": 9,
+      "SealedCID": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
+      "SealRandEpoch": 10101,
+      "DealIDs": [
+        5432
+      ],
+      "Expiration": 10101,
+      "UnsealedCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      }
+    },
+    "PreCommitDeposit": "0",
+    "PreCommitMessage": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "PreCommitTipSet": [
+      {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
+      {
+        "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+      }
+    ],
+    "SeedValue": "Bw==",
+    "SeedEpoch": 10101,
+    "CommitProof": "Ynl0ZSBhcnJheQ==",
+    "CommitMessage": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "Log": [
+      {
+        "Kind": "string value",
+        "Timestamp": 42,
+        "Trace": "string value",
+        "Message": "string value"
+      }
+    ],
+    "DataUnsealed": {
+      "Local": true,
+      "URL": "string value",
+      "Headers": [
+        {
+          "Key": "string value",
+          "Value": "string value"
+        }
+      ]
+    },
+    "DataSealed": {
+      "Local": true,
+      "URL": "string value",
+      "Headers": [
+        {
+          "Key": "string value",
+          "Value": "string value"
+        }
+      ]
+    },
+    "DataCache": {
+      "Local": true,
+      "URL": "string value",
+      "Headers": [
+        {
+          "Key": "string value",
+          "Value": "string value"
+        }
+      ]
+    },
+    "RemoteCommit1Endpoint": "string value",
+    "RemoteCommit2Endpoint": "string value",
+    "RemoteSealingDoneEndpoint": "string value"
+  }
+]
+```
+
+Response: `{}`
 
 ### SectorRemove
 SectorRemove removes the sector from storage. It doesn't terminate it on-chain, which can
@@ -3180,7 +3390,12 @@ Perms: admin
 
 Inputs: `null`
 
-Response: `null`
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
 
 ### SectorTerminatePending
 SectorTerminatePending returns a list of pending sector terminations to be sent in the next batch message
@@ -3281,8 +3496,12 @@ Response:
 {
   "SectorID": 9,
   "State": "Proving",
-  "CommD": null,
-  "CommR": null,
+  "CommD": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "CommR": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Proof": "Ynl0ZSBhcnJheQ==",
   "Deals": [
     5432
@@ -3296,7 +3515,9 @@ Response:
         }
       },
       "DealInfo": {
-        "PublishCid": null,
+        "PublishCid": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
         "DealID": 5432,
         "DealProposal": {
           "PieceCID": {
@@ -3329,11 +3550,17 @@ Response:
     "Value": "Bw==",
     "Epoch": 10101
   },
-  "PreCommitMsg": null,
-  "CommitMsg": null,
+  "PreCommitMsg": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "CommitMsg": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Retries": 42,
   "ToUpgrade": true,
-  "ReplicaUpdateMessage": null,
+  "ReplicaUpdateMessage": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "LastErr": "string value",
   "Log": [
     {
@@ -3387,7 +3614,9 @@ Inputs:
   1040384,
   1024,
   "Bw==",
-  null
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 ]
 ```
 
@@ -3407,6 +3636,18 @@ Inputs:
 ```
 
 Response: `{}`
+
+## Start
+
+
+### StartTime
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0001-01-01T00:00:00Z"`
 
 ## Storage
 
@@ -4397,26 +4638,26 @@ Response:
           },
           "seal/v0/datacid": {
             "0": {
-              "MinMemory": 2048,
-              "MaxMemory": 2048,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
-              "BaseMinMemory": 2048,
+              "BaseMinMemory": 1073741824,
               "MaxConcurrent": 0
             },
             "1": {
-              "MinMemory": 8388608,
-              "MaxMemory": 8388608,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
-              "BaseMinMemory": 8388608,
+              "BaseMinMemory": 1073741824,
               "MaxConcurrent": 0
             },
             "2": {
-              "MinMemory": 1073741824,
-              "MaxMemory": 1073741824,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
@@ -4433,8 +4674,8 @@ Response:
               "MaxConcurrent": 0
             },
             "4": {
-              "MinMemory": 8589934592,
-              "MaxMemory": 8589934592,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
@@ -4442,26 +4683,26 @@ Response:
               "MaxConcurrent": 0
             },
             "5": {
-              "MinMemory": 2048,
-              "MaxMemory": 2048,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
-              "BaseMinMemory": 2048,
+              "BaseMinMemory": 1073741824,
               "MaxConcurrent": 0
             },
             "6": {
-              "MinMemory": 8388608,
-              "MaxMemory": 8388608,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
-              "BaseMinMemory": 8388608,
+              "BaseMinMemory": 1073741824,
               "MaxConcurrent": 0
             },
             "7": {
-              "MinMemory": 1073741824,
-              "MaxMemory": 1073741824,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,
@@ -4478,8 +4719,8 @@ Response:
               "MaxConcurrent": 0
             },
             "9": {
-              "MinMemory": 8589934592,
-              "MaxMemory": 8589934592,
+              "MinMemory": 4294967296,
+              "MaxMemory": 4294967296,
               "GPUUtilization": 0,
               "MaxParallelism": 1,
               "MaxParallelismGPU": 0,

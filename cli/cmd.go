@@ -71,6 +71,7 @@ const FilNATO = float64(100_000_000)
 var Commands = []*cli.Command{
 	WithCategory("basic", sendCmd),
 	WithCategory("basic", walletCmd),
+	WithCategory("basic", infoCmd),
 	WithCategory("basic", clientCmd),
 	WithCategory("basic", multisigCmd),
 	WithCategory("basic", filplusCmd),
@@ -87,6 +88,7 @@ var Commands = []*cli.Command{
 	WithCategory("offline", offlineActorControl),
 	WithCategory("offline", offlineActorSetOwnerCmd),
 	WithCategory("offline", offlineMpoolReplaceCmd),
+	WithCategory("developer", EvmCmd),
 	WithCategory("network", NetCmd),
 	WithCategory("network", SyncCmd),
 	WithCategory("status", StatusCmd),

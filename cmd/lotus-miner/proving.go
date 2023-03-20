@@ -7,22 +7,27 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/proof"
 
 	"github.com/filecoin-project/lotus/blockstore"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
@@ -37,6 +42,7 @@ var provingCmd = &cli.Command{
 		provingCheckProvableCmd,
 		workersCmd(false),
 		provingComputeCmd,
+		provingRecoverFaultsCmd,
 	},
 }
 
@@ -181,18 +187,18 @@ var provingInfoCmd = &cli.Command{
 		fmt.Printf("Current Epoch:           %d\n", cd.CurrentEpoch)
 
 		fmt.Printf("Proving Period Boundary: %d\n", cd.PeriodStart%cd.WPoStProvingPeriod)
-		fmt.Printf("Proving Period Start:    %s\n", lcli.EpochTimeTs(cd.CurrentEpoch, cd.PeriodStart, head))
-		fmt.Printf("Next Period Start:       %s\n\n", lcli.EpochTimeTs(cd.CurrentEpoch, cd.PeriodStart+cd.WPoStProvingPeriod, head))
+		fmt.Printf("Proving Period Start:    %s\n", cliutil.EpochTimeTs(cd.CurrentEpoch, cd.PeriodStart, head))
+		fmt.Printf("Next Period Start:       %s\n\n", cliutil.EpochTimeTs(cd.CurrentEpoch, cd.PeriodStart+cd.WPoStProvingPeriod, head))
 
 		fmt.Printf("Faults:      %d (%.2f%%)\n", faults, faultPerc)
 		fmt.Printf("Recovering:  %d\n", recovering)
 
 		fmt.Printf("Deadline Index:       %d\n", cd.Index)
 		fmt.Printf("Deadline Sectors:     %d\n", curDeadlineSectors)
-		fmt.Printf("Deadline Open:        %s\n", lcli.EpochTime(cd.CurrentEpoch, cd.Open))
-		fmt.Printf("Deadline Close:       %s\n", lcli.EpochTime(cd.CurrentEpoch, cd.Close))
-		fmt.Printf("Deadline Challenge:   %s\n", lcli.EpochTime(cd.CurrentEpoch, cd.Challenge))
-		fmt.Printf("Deadline FaultCutoff: %s\n", lcli.EpochTime(cd.CurrentEpoch, cd.FaultCutoff))
+		fmt.Printf("Deadline Open:        %s\n", cliutil.EpochTime(cd.CurrentEpoch, cd.Open))
+		fmt.Printf("Deadline Close:       %s\n", cliutil.EpochTime(cd.CurrentEpoch, cd.Close))
+		fmt.Printf("Deadline Challenge:   %s\n", cliutil.EpochTime(cd.CurrentEpoch, cd.Challenge))
+		fmt.Printf("Deadline FaultCutoff: %s\n", cliutil.EpochTime(cd.CurrentEpoch, cd.FaultCutoff))
 		return nil
 	},
 }
@@ -310,8 +316,8 @@ var provingDeadlineInfoCmd = &cli.Command{
 	ArgsUsage: "<deadlineIdx>",
 	Action: func(cctx *cli.Context) error {
 
-		if cctx.Args().Len() != 1 {
-			return xerrors.Errorf("must pass deadline index")
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
 		dlIdx, err := strconv.ParseUint(cctx.Args().Get(0), 10, 64)
@@ -457,8 +463,8 @@ var provingCheckProvableCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.Args().Len() != 1 {
-			return xerrors.Errorf("must pass deadline index")
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
 		dlIdx, err := strconv.ParseUint(cctx.Args().Get(0), 10, 64)
@@ -472,7 +478,7 @@ var provingCheckProvableCmd = &cli.Command{
 		}
 		defer closer()
 
-		sapi, scloser, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, scloser, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -480,7 +486,7 @@ var provingCheckProvableCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		addr, err := sapi.ActorAddress(ctx)
+		addr, err := minerApi.ActorAddress(ctx)
 		if err != nil {
 			return err
 		}
@@ -506,7 +512,7 @@ var provingCheckProvableCmd = &cli.Command{
 		var filter map[abi.SectorID]struct{}
 
 		if cctx.IsSet("storage-id") {
-			sl, err := sapi.StorageList(ctx)
+			sl, err := minerApi.StorageList(ctx)
 			if err != nil {
 				return err
 			}
@@ -578,7 +584,7 @@ var provingCheckProvableCmd = &cli.Command{
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, info.WindowPoStProofType, tocheck, cctx.Bool("slow"))
+			bad, err := minerApi.CheckProvable(ctx, info.WindowPoStProofType, tocheck)
 			if err != nil {
 				return err
 			}
@@ -612,8 +618,8 @@ var provingComputeWindowPoStCmd = &cli.Command{
 It will not send any messages to the chain.`,
 	ArgsUsage: "[deadline index]",
 	Action: func(cctx *cli.Context) error {
-		if cctx.Args().Len() != 1 {
-			return xerrors.Errorf("must pass deadline index")
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
 		}
 
 		dlIdx, err := strconv.ParseUint(cctx.Args().Get(0), 10, 64)
@@ -621,7 +627,7 @@ It will not send any messages to the chain.`,
 			return xerrors.Errorf("could not parse deadline index: %w", err)
 		}
 
-		sapi, scloser, err := lcli.GetStorageMinerAPI(cctx)
+		minerApi, scloser, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -630,17 +636,131 @@ It will not send any messages to the chain.`,
 		ctx := lcli.ReqContext(cctx)
 
 		start := time.Now()
-		res, err := sapi.ComputeWindowPoSt(ctx, dlIdx, types.EmptyTSK)
+		res, err := minerApi.ComputeWindowPoSt(ctx, dlIdx, types.EmptyTSK)
 		fmt.Printf("Took %s\n", time.Now().Sub(start))
 		if err != nil {
 			return err
 		}
-		jr, err := json.Marshal(res)
+
+		//convert sector information into easily readable information
+		type PoStPartition struct {
+			Index   uint64
+			Skipped []uint64
+		}
+		type SubmitWindowedPoStParams struct {
+			Deadline         uint64
+			Partitions       []PoStPartition
+			Proofs           []proof.PoStProof
+			ChainCommitEpoch abi.ChainEpoch
+			ChainCommitRand  abi.Randomness
+		}
+		var postParams []SubmitWindowedPoStParams
+		for _, i := range res {
+			var postParam SubmitWindowedPoStParams
+			postParam.Deadline = i.Deadline
+			for id, part := range i.Partitions {
+				postParam.Partitions[id].Index = part.Index
+				count, err := part.Skipped.Count()
+				if err != nil {
+					return err
+				}
+				sectors, err := part.Skipped.All(count)
+				if err != nil {
+					return err
+				}
+				postParam.Partitions[id].Skipped = sectors
+			}
+			postParam.Proofs = i.Proofs
+			postParam.ChainCommitEpoch = i.ChainCommitEpoch
+			postParam.ChainCommitRand = i.ChainCommitRand
+			postParams = append(postParams, postParam)
+		}
+
+		jr, err := json.MarshalIndent(postParams, "", "  ")
 		if err != nil {
 			return err
 		}
 		fmt.Println(string(jr))
 
+		return nil
+	},
+}
+
+var provingRecoverFaultsCmd = &cli.Command{
+	Name:      "recover-faults",
+	Usage:     "Manually recovers faulty sectors on chain",
+	ArgsUsage: "<faulty sectors>",
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "confidence",
+			Usage: "number of block confirmations to wait for",
+			Value: int(build.MessageConfidence),
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if cctx.NArg() < 1 {
+			return lcli.ShowHelp(cctx, xerrors.Errorf("must pass at least 1 sector number"))
+		}
+
+		arglist := cctx.Args().Slice()
+		var sectors []abi.SectorNumber
+		for _, v := range arglist {
+			s, err := strconv.ParseUint(v, 10, 64)
+			if err != nil {
+				return xerrors.Errorf("failed to convert sectors, please check the arguments: %w", err)
+			}
+			sectors = append(sectors, abi.SectorNumber(s))
+		}
+
+		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		api, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		msgs, err := minerApi.RecoverFault(ctx, sectors)
+		if err != nil {
+			return err
+		}
+
+		// wait for msgs to get mined into a block
+		var wg sync.WaitGroup
+		wg.Add(len(msgs))
+		results := make(chan error, len(msgs))
+		for _, msg := range msgs {
+			go func(m cid.Cid) {
+				defer wg.Done()
+				wait, err := api.StateWaitMsg(ctx, m, uint64(cctx.Int("confidence")))
+				if err != nil {
+					results <- xerrors.Errorf("Timeout waiting for message to land on chain %s", wait.Message)
+					return
+				}
+
+				if wait.Receipt.ExitCode.IsError() {
+					results <- xerrors.Errorf("Failed to execute message %s: %w", wait.Message, wait.Receipt.ExitCode.Error())
+					return
+				}
+				results <- nil
+				return
+			}(msg)
+		}
+
+		wg.Wait()
+		close(results)
+
+		for v := range results {
+			if v != nil {
+				fmt.Println("Failed to execute the message %w", v)
+			}
+		}
 		return nil
 	},
 }

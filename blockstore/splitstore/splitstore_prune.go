@@ -47,6 +47,23 @@ var (
 	PruneThreshold = 7 * build.Finality
 )
 
+// GCHotstore runs online GC on the chain state in the hotstore according the to options specified
+func (s *SplitStore) GCHotStore(opts api.HotGCOpts) error {
+	if opts.Moving {
+		gcOpts := []bstore.BlockstoreGCOption{bstore.WithFullGC(true)}
+		return s.gcBlockstore(s.hot, gcOpts)
+	}
+
+	gcOpts := []bstore.BlockstoreGCOption{bstore.WithThreshold(opts.Threshold)}
+	var err error
+	if opts.Periodic {
+		err = s.gcBlockstore(s.hot, gcOpts)
+	} else {
+		err = s.gcBlockstoreOnce(s.hot, gcOpts)
+	}
+	return err
+}
+
 // PruneChain instructs the SplitStore to prune chain state in the coldstore, according to the
 // options specified.
 func (s *SplitStore) PruneChain(opts api.PruneOpts) error {
@@ -208,7 +225,7 @@ func (s *SplitStore) doPrune(curTs *types.TipSet, retainStateP func(int64) bool,
 	log.Info("collecting dead objects")
 	startCollect := time.Now()
 
-	deadw, err := NewColdSetWriter(s.deadSetPath())
+	deadw, err := NewColdSetWriter(s.discardSetPath())
 	if err != nil {
 		return xerrors.Errorf("error creating coldset: %w", err)
 	}
@@ -267,7 +284,7 @@ func (s *SplitStore) doPrune(curTs *types.TipSet, retainStateP func(int64) bool,
 		return err
 	}
 
-	deadr, err := NewColdSetReader(s.deadSetPath())
+	deadr, err := NewColdSetReader(s.discardSetPath())
 	if err != nil {
 		return xerrors.Errorf("error opening deadset: %w", err)
 	}
@@ -311,10 +328,10 @@ func (s *SplitStore) doPrune(curTs *types.TipSet, retainStateP func(int64) bool,
 		log.Warnf("error removing checkpoint: %s", err)
 	}
 	if err := deadr.Close(); err != nil {
-		log.Warnf("error closing deadset: %s", err)
+		log.Warnf("error closing discard set: %s", err)
 	}
-	if err := os.Remove(s.deadSetPath()); err != nil {
-		log.Warnf("error removing deadset: %s", err)
+	if err := os.Remove(s.discardSetPath()); err != nil {
+		log.Warnf("error removing discard set: %s", err)
 	}
 
 	// we are done; do some housekeeping
@@ -329,9 +346,9 @@ func (s *SplitStore) doPrune(curTs *types.TipSet, retainStateP func(int64) bool,
 	}
 
 	s.pruneIndex++
-	err = s.ds.Put(s.ctx, pruneIndexKey, int64ToBytes(s.compactionIndex))
+	err = s.ds.Put(s.ctx, pruneIndexKey, int64ToBytes(s.pruneIndex))
 	if err != nil {
-		return xerrors.Errorf("error saving compaction index: %w", err)
+		return xerrors.Errorf("error saving prune index: %w", err)
 	}
 
 	return nil
@@ -344,7 +361,7 @@ func (s *SplitStore) completePrune() error {
 	}
 	defer checkpoint.Close() //nolint:errcheck
 
-	deadr, err := NewColdSetReader(s.deadSetPath())
+	deadr, err := NewColdSetReader(s.discardSetPath())
 	if err != nil {
 		return xerrors.Errorf("error opening deadset: %w", err)
 	}
@@ -378,7 +395,7 @@ func (s *SplitStore) completePrune() error {
 	if err := deadr.Close(); err != nil {
 		log.Warnf("error closing deadset: %s", err)
 	}
-	if err := os.Remove(s.deadSetPath()); err != nil {
+	if err := os.Remove(s.discardSetPath()); err != nil {
 		log.Warnf("error removing deadset: %s", err)
 	}
 

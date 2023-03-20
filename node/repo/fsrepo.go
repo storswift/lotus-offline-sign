@@ -25,8 +25,9 @@ import (
 	badgerbs "github.com/filecoin-project/lotus/blockstore/badger"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/filecoin-project/lotus/system"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 	fsDatastore     = "datastore"
 	fsLock          = "repo.lock"
 	fsKeystore      = "keystore"
+	fsSqlite        = "sqlite"
 )
 
 func NewRepoTypeFromString(t string) RepoType {
@@ -411,6 +413,10 @@ type fsLockedRepo struct {
 	ssErr  error
 	ssOnce sync.Once
 
+	sqlPath string
+	sqlErr  error
+	sqlOnce sync.Once
+
 	storageLk sync.Mutex
 	configLk  sync.Mutex
 }
@@ -474,19 +480,8 @@ func (fsr *fsLockedRepo) Blockstore(ctx context.Context, domain BlockstoreDomain
 			return
 		}
 
-		//
-		// Tri-state environment variable LOTUS_CHAIN_BADGERSTORE_DISABLE_FSYNC
-		// - unset == the default (currently fsync enabled)
-		// - set with a false-y value == fsync enabled no matter what a future default is
-		// - set with any other value == fsync is disabled ignored defaults (recommended for day-to-day use)
-		//
-		if nosyncBs, nosyncBsSet := os.LookupEnv("LOTUS_CHAIN_BADGERSTORE_DISABLE_FSYNC"); nosyncBsSet {
-			nosyncBs = strings.ToLower(nosyncBs)
-			if nosyncBs == "" || nosyncBs == "0" || nosyncBs == "false" || nosyncBs == "no" {
-				opts.SyncWrites = true
-			} else {
-				opts.SyncWrites = false
-			}
+		if system.BadgerFsyncDisable {
+			opts.SyncWrites = false
 		}
 
 		bs, err := badgerbs.Open(opts)
@@ -513,6 +508,21 @@ func (fsr *fsLockedRepo) SplitstorePath() (string, error) {
 	})
 
 	return fsr.ssPath, fsr.ssErr
+}
+
+func (fsr *fsLockedRepo) SqlitePath() (string, error) {
+	fsr.sqlOnce.Do(func() {
+		path := fsr.join(fsSqlite)
+
+		if err := os.MkdirAll(path, 0755); err != nil {
+			fsr.sqlErr = err
+			return
+		}
+
+		fsr.sqlPath = path
+	})
+
+	return fsr.sqlPath, fsr.sqlErr
 }
 
 // join joins path elements with fsr.path
@@ -572,26 +582,26 @@ func (fsr *fsLockedRepo) SetConfig(c func(interface{})) error {
 	return nil
 }
 
-func (fsr *fsLockedRepo) GetStorage() (paths.StorageConfig, error) {
+func (fsr *fsLockedRepo) GetStorage() (storiface.StorageConfig, error) {
 	fsr.storageLk.Lock()
 	defer fsr.storageLk.Unlock()
 
 	return fsr.getStorage(nil)
 }
 
-func (fsr *fsLockedRepo) getStorage(def *paths.StorageConfig) (paths.StorageConfig, error) {
+func (fsr *fsLockedRepo) getStorage(def *storiface.StorageConfig) (storiface.StorageConfig, error) {
 	c, err := config.StorageFromFile(fsr.join(fsStorageConfig), def)
 	if err != nil {
-		return paths.StorageConfig{}, err
+		return storiface.StorageConfig{}, err
 	}
 	return *c, nil
 }
 
-func (fsr *fsLockedRepo) SetStorage(c func(*paths.StorageConfig)) error {
+func (fsr *fsLockedRepo) SetStorage(c func(*storiface.StorageConfig)) error {
 	fsr.storageLk.Lock()
 	defer fsr.storageLk.Unlock()
 
-	sc, err := fsr.getStorage(&paths.StorageConfig{})
+	sc, err := fsr.getStorage(&storiface.StorageConfig{})
 	if err != nil {
 		return xerrors.Errorf("get storage: %w", err)
 	}

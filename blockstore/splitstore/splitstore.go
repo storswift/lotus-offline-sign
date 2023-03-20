@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	dstore "github.com/ipfs/go-datastore"
 	ipld "github.com/ipfs/go-ipld-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/stats"
 	"go.uber.org/multierr"
@@ -98,6 +98,10 @@ type Config struct {
 	// and directly purges cold blocks.
 	DiscardColdBlocks bool
 
+	// UniversalColdBlocks indicates whether all blocks being garbage collected and purged
+	// from the hotstore should be written to the cold store
+	UniversalColdBlocks bool
+
 	// HotstoreMessageRetention indicates the hotstore retention policy for messages.
 	// It has the following semantics:
 	// - a value of 0 will only retain messages within the compaction boundary (4 finalities)
@@ -112,20 +116,22 @@ type Config struct {
 	// a value of 1 will perform full GC in every compaction.
 	HotStoreFullGCFrequency uint64
 
-	// EnableColdStoreAutoPrune turns on compaction of the cold store i.e. pruning
-	// where hotstore compaction occurs every finality epochs pruning happens every 3 finalities
-	// Default is false
-	EnableColdStoreAutoPrune bool
+	// HotstoreMaxSpaceTarget suggests the max allowed space the hotstore can take.
+	// This is not a hard limit, it is possible for the hotstore to exceed the target
+	// for example if state grows massively between compactions. The splitstore
+	// will make a best effort to avoid overflowing the target and in practice should
+	// never overflow.  This field is used when doing GC at the end of a compaction to
+	// adaptively choose moving GC
+	HotstoreMaxSpaceTarget uint64
 
-	// ColdStoreFullGCFrequency specifies how often to performa a full (moving) GC on the coldstore.
-	// Only applies if auto prune is enabled.  A value of 0 disables while a value of 1 will do
-	// full GC in every prune.
-	// Default is 7 (about once every a week)
-	ColdStoreFullGCFrequency uint64
+	// Moving GC will be triggered when total moving size exceeds
+	// HotstoreMaxSpaceTarget - HotstoreMaxSpaceThreshold
+	HotstoreMaxSpaceThreshold uint64
 
-	// ColdStoreRetention specifies the retention policy for data reachable from the chain, in
-	// finalities beyond the compaction boundary, default is 0, -1 retains everything
-	ColdStoreRetention int64
+	// Safety buffer to prevent moving GC from overflowing disk.
+	// Moving GC will not occur when total moving size exceeds
+	// HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer
+	HotstoreMaxSpaceSafetyBuffer uint64
 }
 
 // ChainAccessor allows the Splitstore to access the chain. It will most likely
@@ -176,6 +182,7 @@ type SplitStore struct {
 
 	compactionIndex int64
 	pruneIndex      int64
+	onlineGCCnt     int64
 
 	ctx    context.Context
 	cancel func()
@@ -206,6 +213,17 @@ type SplitStore struct {
 
 	// registered protectors
 	protectors []func(func(cid.Cid) error) error
+
+	// dag sizes measured during latest compaction
+	// logged and used for GC strategy
+
+	// protected by compaction lock
+	szWalk          int64
+	szProtectedTxns int64
+	szKeys          int64 // approximate, not counting keys protected when entering critical section
+
+	// protected by txnLk
+	szMarkedLiveRefs int64
 }
 
 var _ bstore.Blockstore = (*SplitStore)(nil)
@@ -456,6 +474,23 @@ func (s *SplitStore) GetSize(ctx context.Context, cid cid.Cid) (int, error) {
 	default:
 		return 0, err
 	}
+}
+
+func (s *SplitStore) Flush(ctx context.Context) error {
+	s.txnLk.RLock()
+	defer s.txnLk.RUnlock()
+
+	if err := s.cold.Flush(ctx); err != nil {
+		return err
+	}
+	if err := s.hot.Flush(ctx); err != nil {
+		return err
+	}
+	if err := s.ds.Sync(ctx, dstore.Key{}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *SplitStore) Put(ctx context.Context, blk blocks.Block) error {

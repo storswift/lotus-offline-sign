@@ -8,15 +8,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-graphsync"
+	"github.com/ipld/go-ipld-prime"
+	"github.com/ipld/go-ipld-prime/codec/dagjson"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/filecoin-project/go-address"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -56,6 +59,11 @@ type PubsubScore struct {
 type MessageSendSpec struct {
 	MaxFee  abi.TokenAmount
 	MsgUuid uuid.UUID
+}
+
+type MpoolMessageWhole struct {
+	Msg  *types.Message
+	Spec *MessageSendSpec
 }
 
 // GraphSyncDataTransfer provides diagnostics on a data transfer happening over graphsync
@@ -104,16 +112,12 @@ func NewDataTransferChannel(hostID peer.ID, channelState datatransfer.ChannelSta
 		IsSender:   channelState.Sender() == hostID,
 		Message:    channelState.Message(),
 	}
-	stringer, ok := channelState.Voucher().(fmt.Stringer)
-	if ok {
-		channel.Voucher = stringer.String()
+	voucher := channelState.Voucher()
+	voucherJSON, err := ipld.Encode(voucher.Voucher, dagjson.Encode)
+	if err != nil {
+		channel.Voucher = fmt.Errorf("Voucher Serialization: %w", err).Error()
 	} else {
-		voucherJSON, err := json.Marshal(channelState.Voucher())
-		if err != nil {
-			channel.Voucher = fmt.Errorf("Voucher Serialization: %w", err).Error()
-		} else {
-			channel.Voucher = string(voucherJSON)
-		}
+		channel.Voucher = string(voucherJSON)
 	}
 	if channel.IsSender {
 		channel.IsInitiator = !channelState.IsPull()
@@ -295,6 +299,9 @@ type MinerInfo struct {
 	SectorSize                 abi.SectorSize
 	WindowPoStPartitionSectors uint64
 	ConsensusFaultElapsed      abi.ChainEpoch
+	Beneficiary                address.Address
+	BeneficiaryTerm            *miner.BeneficiaryTerm
+	PendingBeneficiaryTerm     *miner.PendingBeneficiaryChange
 }
 
 type NetworkParams struct {
@@ -327,4 +334,74 @@ type ForkUpgradeParams struct {
 	UpgradeHyperdriveHeight    abi.ChainEpoch
 	UpgradeChocolateHeight     abi.ChainEpoch
 	UpgradeOhSnapHeight        abi.ChainEpoch
+	UpgradeSkyrHeight          abi.ChainEpoch
+	UpgradeSharkHeight         abi.ChainEpoch
+	UpgradeHyggeHeight         abi.ChainEpoch
+}
+
+type NonceMapType map[address.Address]uint64
+type MsgUuidMapType map[uuid.UUID]*types.SignedMessage
+
+type RaftStateData struct {
+	NonceMap NonceMapType
+	MsgUuids MsgUuidMapType
+}
+
+func (n *NonceMapType) MarshalJSON() ([]byte, error) {
+	marshalled := make(map[string]uint64)
+	for a, n := range *n {
+		marshalled[a.String()] = n
+	}
+	return json.Marshal(marshalled)
+}
+
+func (n *NonceMapType) UnmarshalJSON(b []byte) error {
+	unmarshalled := make(map[string]uint64)
+	err := json.Unmarshal(b, &unmarshalled)
+	if err != nil {
+		return err
+	}
+	*n = make(map[address.Address]uint64)
+	for saddr, nonce := range unmarshalled {
+		a, err := address.NewFromString(saddr)
+		if err != nil {
+			return err
+		}
+		(*n)[a] = nonce
+	}
+	return nil
+}
+
+func (m *MsgUuidMapType) MarshalJSON() ([]byte, error) {
+	marshalled := make(map[string]*types.SignedMessage)
+	for u, msg := range *m {
+		marshalled[u.String()] = msg
+	}
+	return json.Marshal(marshalled)
+}
+
+func (m *MsgUuidMapType) UnmarshalJSON(b []byte) error {
+	unmarshalled := make(map[string]*types.SignedMessage)
+	err := json.Unmarshal(b, &unmarshalled)
+	if err != nil {
+		return err
+	}
+	*m = make(map[uuid.UUID]*types.SignedMessage)
+	for suid, msg := range unmarshalled {
+		u, err := uuid.Parse(suid)
+		if err != nil {
+			return err
+		}
+		(*m)[u] = msg
+	}
+	return nil
+}
+
+// ChainExportConfig holds configuration for chain ranged exports.
+type ChainExportConfig struct {
+	WriteBufferSize   int
+	NumWorkers        int
+	IncludeMessages   bool
+	IncludeReceipts   bool
+	IncludeStateRoots bool
 }
